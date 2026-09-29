@@ -41,6 +41,23 @@ def separated_random_offsets(count, max_shift_px, min_distance_px, seed):
     return np.asarray(offsets)
 
 
+def separated_random_offsets_m(count, max_shift_m, min_distance_m, seed):
+    """出力面の実座標[m]で中心間隔を確保。subpixel配置を許す。"""
+    if count < 2 or max_shift_m <= 0 or min_distance_m < 0:
+        raise ValueError('Thread数・移動範囲・最小間隔を見直してください。')
+    rng = np.random.default_rng(seed)
+    offsets = [np.zeros(2)]
+    for _ in range(1, count):
+        for _attempt in range(10000):
+            candidate = rng.uniform(-max_shift_m, max_shift_m, size=2)
+            if all(np.linalg.norm(candidate-prev) >= min_distance_m for prev in offsets):
+                offsets.append(candidate)
+                break
+        else:
+            raise ValueError('指定した移動範囲では中心間隔を満たせません。')
+    return np.asarray(offsets)
+
+
 def run_multi_pattern_cgh(library_path, output_dir, *, mode_index, kr,
                           saved_reference_weights, pixel_pitch, slm_pixel_pitch,
                           wavelength, design_length, edge_fraction,
@@ -48,8 +65,10 @@ def run_multi_pattern_cgh(library_path, output_dir, *, mode_index, kr,
                           windows=((0.08, 0.24), (0.30, 0.46),
                                    (0.53, 0.69), (0.76, 0.92)),
                           max_shift_px=80, min_distance_px=45, seed=42,
+                          max_shift_m=None, min_distance_m=45e-6,
                           validate_axial=True, axial_samples=21,
-                          propagation_padding=2):
+                          propagation_padding=2, illumination_model='square',
+                          laser_diameter=None, laser_waist=None):
     """複数の異なるFWパターンの複素場・CGH・数値再生を3方式で比較。"""
     mode_index = np.asarray(mode_index)
     kr = np.asarray(kr)
@@ -64,21 +83,27 @@ def run_multi_pattern_cgh(library_path, output_dir, *, mode_index, kr,
         raise ValueError('目標明区間が重複しています。異なるパターンを指定してください。')
     weights = np.stack([frozen_wave_weights(mode_index, start, end)
                         for start, end in windows])
-    offsets = separated_random_offsets(len(windows), max_shift_px,
-                                       min_distance_px, seed)
+    if max_shift_m is None:
+        offsets = separated_random_offsets(len(windows), max_shift_px,
+                                           min_distance_px, seed)*pixel_pitch
+    else:
+        offsets = separated_random_offsets_m(len(windows), max_shift_m,
+                                             min_distance_m, seed)
     out = Path(output_dir)
     result = run_shifted_rank80(
         library_path, out, kr=kr, weights=saved_reference_weights,
         pixel_pitch=pixel_pitch, slm_pixel_pitch=slm_pixel_pitch,
         wavelength=wavelength, edge_fraction=edge_fraction,
-        thread_shifts_px=offsets, expected_config_id=expected_config_id,
+        thread_shifts_m=offsets, expected_config_id=expected_config_id,
         thread_weights=weights,
+        illumination_model=illumination_model, laser_diameter=laser_diameter,
+        laser_waist=laser_waist,
         pattern_labels=[f'{start:.2f}L–{end:.2f}L' for start, end in windows],
     )
     with (out/'thread_patterns.csv').open('w', newline='', encoding='utf-8-sig') as stream:
         writer = csv.writer(stream)
-        writer.writerow(['thread', 'shift_x_px', 'shift_y_px', 'start_z_m', 'end_z_m'])
-        writer.writerows((i, int(offsets[i, 0]), int(offsets[i, 1]),
+        writer.writerow(['thread', 'shift_x_m', 'shift_y_m', 'start_z_m', 'end_z_m'])
+        writer.writerows((i, float(offsets[i, 0]), float(offsets[i, 1]),
                           windows[i][0]*design_length, windows[i][1]*design_length)
                          for i in range(len(windows)))
     z = np.linspace(0, design_length, 501)
@@ -86,7 +111,7 @@ def run_multi_pattern_cgh(library_path, output_dir, *, mode_index, kr,
     for i, ((start, end), (sx, sy)) in enumerate(zip(windows, offsets)):
         target = ((z >= start*design_length)&(z <= end*design_length)).astype(float)
         ax.plot(z*1000, target+i*1.25,
-                label=f'Thread {i}: ({sx:+d},{sy:+d}) px; {start:.2f}–{end:.2f} L')
+                label=f'Thread {i}: ({sx*1e6:+.1f},{sy*1e6:+.1f}) µm; {start:.2f}–{end:.2f} L')
     ax.set(xlabel='z [mm, from 4f output plane]',
            ylabel='Target window (vertical offsets for display)',
            title='Distinct axial target patterns for shifted Threads')
@@ -112,7 +137,7 @@ def run_multi_pattern_cgh(library_path, output_dir, *, mode_index, kr,
                 curves[method] = axial_intensity(
                     field, pixel_pitch, wavelength, z_samples,
                     padding_factor=propagation_padding,
-                    x_target=sx*pixel_pitch, y_target=sy*pixel_pitch)
+                    x_target=sx, y_target=sy)
                 print(f'Axial check: thread {thread+1}/{len(windows)}, {method}', flush=True)
             axial_metrics.append({
                 'thread': thread,

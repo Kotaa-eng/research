@@ -9,7 +9,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import j0
-from lsh_core import fit_tucker
+from lsh_core import (fit_tucker, illumination_aperture,
+                      effective_output_radius, geometric_reach)
+from thread_cgh import axial_intensity
 from tensorly import unfold
 
 
@@ -46,10 +48,15 @@ def design_modes(r0_output, wavelength, length, output_half_aperture,
             'usable_radius': usable_radius}
 
 
-def study_radii(r0_output_um=(30, 60, 120, 150), ranks=(32, 64, 128, 192, 256, 300),
-                n=1024, slm_pitch=8e-6, magnification=0.25,
+def study_radii(r0_output_um=(30, 40, 50, 60, 80, 100, 120),
+                ranks=(32, 64, 128, 192, 256),
+                n=2048, slm_pitch=3.74e-6, magnification=0.25,
                 wavelength=532e-9, length=0.50, edge_fraction=0.10,
-                output_dir='radius_tucker_outputs', bright_fraction=(0.15, 0.65)):
+                output_dir='radius_tucker_outputs', bright_fraction=(0.15, 0.65),
+                illumination_model='square', laser_diameter=None, laser_waist=None,
+                lens_diameter_output=None, iris_diameter_output=None,
+                evaluate_propagation=False, propagation_samples=21,
+                propagation_padding=2):
     """半径ごとにFFTテンソルを作り、空間2方向のTucker近似誤差を保存。
 
     r0は4f出力面における中心J0モードの第1零点半径。全モード同半径ではない。
@@ -64,19 +71,23 @@ def study_radii(r0_output_um=(30, 60, 120, 150), ranks=(32, 64, 128, 192, 256, 3
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     output_pitch = magnification*slm_pitch
-    half_aperture = (n-1)*output_pitch/2
+    half_aperture, radius_limits, ideal_upper_bound = effective_output_radius(
+        n, slm_pitch, magnification, laser_diameter=laser_diameter,
+        laser_waist=laser_waist, lens_diameter_output=lens_diameter_output,
+        iris_diameter_output=iris_diameter_output,
+        edge_fraction=edge_fraction if illumination_model == 'square' else 0)
     x = (np.arange(n)-(n-1)/2)*output_pitch
     xx, yy = np.meshgrid(x, x)
     rr = np.hypot(xx, yy)
-    start = half_aperture*(1-edge_fraction)
-    u = np.clip((np.abs(x)-start)/(half_aperture-start), 0, 1) if edge_fraction else np.zeros_like(x)
-    taper = .5*(1+np.cos(np.pi*u))
-    aperture = (taper[:, None]*taper[None, :]).astype(np.float32)
+    aperture = illumination_aperture(n, output_pitch, magnification,
+                                    edge_fraction, illumination_model,
+                                    laser_diameter, laser_waist)
     rows = []
     for radius_um in r0_output_um:
         radius = float(radius_um)*1e-6
         d = design_modes(radius, wavelength, length, half_aperture,
-                         edge_fraction, output_pitch, magnification)
+                         0, output_pitch, magnification)
+        mode_reach = geometric_reach(d['kr'], wavelength, half_aperture)
         print(f'r0(out)={radius_um:g} μm; r0(SLM)={radius_um/magnification:g} μm; '
               f'center reach≈{d["center_reach"]:.3f} m; '
               f'sampled modes={len(d["m"])} / {len(d["all_m"])}', flush=True)
@@ -96,6 +107,19 @@ def study_radii(r0_output_um=(30, 60, 120, 150), ranks=(32, 64, 128, 192, 256, 3
         thread_norm = np.linalg.norm(exact_thread_fft)
         radius_folder = out / f'r0_output_{float(radius_um):g}um'
         radius_folder.mkdir(exist_ok=True)
+        propagation_peak = None
+        propagation_end_fraction = None
+        if evaluate_propagation:
+            z_values = np.linspace(0, length, propagation_samples)
+            exact_field = np.fft.ifft2(exact_thread_fft, norm='ortho')
+            axial = axial_intensity(exact_field, output_pitch, wavelength,
+                                    z_values, propagation_padding)
+            peak = max(float(axial.max()), np.finfo(float).tiny)
+            propagation_peak = float(peak)
+            propagation_end_fraction = float(axial[-1]/peak)
+            np.savetxt(radius_folder/'finite_aperture_axial.csv',
+                       np.column_stack((z_values, axial)), delimiter=',',
+                       header='z_m,on_axis_intensity', comments='')
         for rank in ranks:
             compressed_cores = cores[:, :rank, :rank].astype(np.complex64)
             saved_uy = uy[:, :rank].astype(np.float32)
@@ -112,8 +136,18 @@ def study_radii(r0_output_um=(30, 60, 120, 150), ranks=(32, 64, 128, 192, 256, 3
             thread_core = np.tensordot(weights, compressed_cores, axes=(0, 0))
             restored_thread_fft = saved_uy @ thread_core @ saved_ux.T
             thread_error = np.linalg.norm(exact_thread_fft-restored_thread_fft)/thread_norm
-            rows.append({'r0_output_um': radius_um, 'rank': rank, 'status': '評価済み',
+            rows.append({'r0_output_um': radius_um, 'kr_center_per_m': d['kr0'],
+                         'q_per_m': d['q'], 'kr_min_per_m': float(d['kr'].min()),
+                         'kr_max_per_m': float(d['kr'].max()),
+                         'illumination_model': illumination_model,
+                         'rank': rank, 'status': '評価済み',
                          'center_reach_m': d['center_reach'], 'modes': len(d['m']),
+                         'minimum_mode_geometric_reach_m': float(mode_reach.min()),
+                         'effective_radius_m': half_aperture,
+                         'radius_limits_m': str(radius_limits),
+                         'reach_is_ideal_upper_bound': ideal_upper_bound,
+                         'finite_aperture_axial_peak': propagation_peak,
+                         'finite_aperture_end_to_peak': propagation_end_fraction,
                          'all_modes_reach_length': bool(np.all(d['all_reach'] >= length)),
                          'worst_beam_error': max(errors),
                          'library_error': np.sqrt(total_error2/beam_norm2.sum()),
@@ -138,9 +172,7 @@ def study_radii(r0_output_um=(30, 60, 120, 150), ranks=(32, 64, 128, 192, 256, 3
         fig.savefig(radius_folder/'rank_errors.png', dpi=150)
         plt.close(fig)
     with (out/'radius_rank_errors.csv').open('w', newline='', encoding='utf-8-sig') as stream:
-        writer = csv.DictWriter(stream, fieldnames=['r0_output_um', 'rank', 'status',
-                                'center_reach_m', 'modes', 'all_modes_reach_length', 'worst_beam_error',
-                                'library_error', 'thread_field_error'])
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
     return rows

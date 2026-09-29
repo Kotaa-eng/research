@@ -102,6 +102,7 @@ def export_all_modes(bessel_centered, bessel_fft, core_complex,
                 'amplitude': amplitudes[row]/amplitude_scale,
                 'phase_wrapped_gray': np.where(spatial_mask, 0.5, (phase+np.pi)/(2*np.pi)),
                 'fft_amplitude': fft_amplitudes[row]/fft_scale,
+                'fft_intensity': (fft_amplitudes[row]/fft_scale)**2,
                 'fft_amplitude_db': (np.clip(db, -80, 0)+80)/80,
                 'fft_phase_wrapped_gray': np.where(fft_mask, 0.5, (fft_phase+np.pi)/(2*np.pi)),
                 # Full FFT grid: no crop or interpolation. Middle gray is zero;

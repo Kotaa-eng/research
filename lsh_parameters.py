@@ -1,21 +1,41 @@
-# 主検証の唯一の物理設定。test.ipynbの設定セルから再読込します。
-"""4f出力面のLSH設計条件。SLM面との横倍率は1/4。"""
+"""LSH主経路の物理設定。座標原点 z=0 は4f系の出力結像面。"""
 import numpy as np
 
 WAVELENGTH = 532e-9
-SPOT_RADIUS = 30e-6  # 4f出力面における中心J0の第1零点半径
-DESIGN_LENGTH = 0.50  # 4f出力面からの伝搬距離
-SLM_PIXEL_PITCH = 8e-6
-FOUR_F_MAGNIFICATION = 0.25
+SLM_PIXEL_PITCH = 3.74e-6
+FOUR_F_MAGNIFICATION = 0.25  # 絶対値。結像の反転は座標規約へ吸収する。
 PIXEL_PITCH = SLM_PIXEL_PITCH * FOUR_F_MAGNIFICATION
-N = 1024
+N = 2048
+SLM_WIDTH = N * SLM_PIXEL_PITCH
+OUTPUT_WIDTH = N * PIXEL_PITCH
+
+# r0 は出力面の中心J0モードの第1零点。開口半径ではない。
+# 100 µmは未検証の開始値であり、30～120 µmの掃引で選定する。
+SPOT_RADIUS = 100e-6
+SPOT_RADIUS_SWEEP_UM = (30, 40, 50, 60, 80, 100, 120)
+DESIGN_LENGTH = 0.50  # z方向の設計区間。到達距離の保証ではない。
 RANK = 256
-BASIS_RANK = 256  # 本検証とランク調査で同じ最大ランク基底を使用
+BASIS_RANK = 256
 APERTURE_EDGE_FRACTION = 0.10
-# 現在は1本のThreadの予備検証。0.5 m全区間を明るくする設計ではない。
 THREAD_Z_START = 0.15 * DESIGN_LENGTH
 THREAD_Z_END = 0.65 * DESIGN_LENGTH
-PROPAGATION_PADDING = 2  # RS直接積分との照合で不足なら増やす
+PROPAGATION_PADDING = 2
+
+# SLM面での1/e^2強度直径または1/e振幅waist。両方指定しない。
+# 未確定の間は全面一様照明を仮定し、到達距離は理想上限と表示する。
+LASER_DIAMETER = None
+LASER_WAIST = None
+# 以下は4f出力面へ換算した直径。未確定なら制限を課さない。
+LENS_APERTURE_DIAMETER_OUTPUT = None
+IRIS_APERTURE_DIAMETER_OUTPUT = None
+ILLUMINATION_MODEL = 'square'  # 'square' または 'gaussian_fixed'
+
+if LASER_DIAMETER is not None and LASER_WAIST is not None:
+    raise ValueError('LASER_DIAMETERとLASER_WAISTはどちらか一方のみ指定してください。')
+if ILLUMINATION_MODEL not in ('square', 'gaussian_fixed'):
+    raise ValueError('ILLUMINATION_MODELはsquareまたはgaussian_fixed。')
+if ILLUMINATION_MODEL == 'gaussian_fixed' and LASER_DIAMETER is None and LASER_WAIST is None:
+    raise ValueError('Gaussian照明にはLASER_DIAMETERまたはLASER_WAISTが必要です。')
 
 K = 2 * np.pi / WAVELENGTH
 KR_CENTER = 2.404825557695773 / SPOT_RADIUS

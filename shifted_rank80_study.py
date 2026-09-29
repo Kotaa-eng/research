@@ -1,7 +1,7 @@
 """保存済みランク80辞書で複数Threadをずらして合成する。
 
 実行入口はrun_shifted_rank80。import時には計算しない。
-座標ずれは出力面の整数画素。各Thread内では全Besselモードが同じ位置。
+座標ずれは出力面の[m]または部分画素。各Thread内では全Besselモードが同じ位置。
 """
 import csv
 import json
@@ -12,7 +12,8 @@ import numpy as np
 from PIL import Image
 from scipy.special import j0
 
-from lsh_core import PhaseOnlyCodec, relative_error, phase_metrics
+from lsh_core import (PhaseOnlyCodec, relative_error, phase_metrics,
+                      shift_operators, illumination_aperture)
 
 
 def _aperture(n, pitch, edge_fraction):
@@ -31,7 +32,9 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
                        pixel_pitch, slm_pixel_pitch, wavelength,
                        edge_fraction=0.10, thread_shifts_px=None, thread_count=3, max_shift_px=16,
                        seed=42, expected_config_id=None, thread_weights=None,
-                       pattern_labels=None):
+                       pattern_labels=None, thread_shifts_m=None,
+                       illumination_model='square', laser_diameter=None, laser_waist=None,
+                       save_shift_operators=False):
     """理論直接生成・非圧縮FFT移動・ランク80移動コアの3段階で誤差を分離。
 
     FFTの移動位相は周期シフトであり、固定開口を持つ直接生成と厳密には違う。
@@ -71,7 +74,9 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     if (count != len(kr) or rank != rank_x or ux.shape != (n, 80)
             or not 0 <= edge_fraction < 1):
         raise ValueError('辞書・因子・開口設定の形状が不正です。')
-    if thread_shifts_px is None:
+    if thread_shifts_px is not None and thread_shifts_m is not None:
+        raise ValueError('位置はthread_shifts_pxまたはthread_shifts_mの一方で指定してください。')
+    if thread_shifts_px is None and thread_shifts_m is None:
         generated_shifts = True
         if thread_count < 2 or max_shift_px < 1:
             raise ValueError('移動検証には2本以上のThreadと正の最大移動量が必要です。')
@@ -88,12 +93,13 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
                     -max_shift_px, max_shift_px+1, size=2)
     else:
         generated_shifts = False
-    thread_shifts_px = np.asarray(thread_shifts_px)
+    if thread_shifts_m is not None:
+        thread_shifts_px = np.asarray(thread_shifts_m, dtype=float)/pixel_pitch
+    thread_shifts_px = np.asarray(thread_shifts_px, dtype=float)
     if (thread_shifts_px.ndim != 2 or thread_shifts_px.shape[1] != 2
-            or len(thread_shifts_px) < 2
-            or not np.all(thread_shifts_px == np.rint(thread_shifts_px))):
-        raise ValueError('thread_shifts_pxは[Thread数,2]の整数画素指定です。列は[x,y]。')
-    thread_shifts_px = thread_shifts_px.astype(int)
+            or len(thread_shifts_px) < 2 or not np.all(np.isfinite(thread_shifts_px))):
+        raise ValueError('位置は[Thread数,2]の有限値で指定します。列は[x,y]。')
+    thread_shifts_m = thread_shifts_px*pixel_pitch
     if not np.any(thread_shifts_px):
         raise ValueError('少なくとも1本のThreadを原点から移動してください。')
     if thread_weights is None:
@@ -103,32 +109,41 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
         raise ValueError('thread_weightsは[Thread数,モード数]で指定してください。')
     if pattern_labels is not None and len(pattern_labels) != len(thread_shifts_px):
         raise ValueError('pattern_labelsの数がThread数と一致しません。')
-    x, aperture = _aperture(n, pixel_pitch, edge_fraction)
+    x, _ = _aperture(n, pixel_pitch, edge_fraction)
+    aperture = illumination_aperture(
+        n, pixel_pitch, pixel_pitch/slm_pixel_pitch, edge_fraction,
+        illumination_model, laser_diameter, laser_waist)
+    direct_model = ('square_fixed_aperture' if illumination_model == 'square'
+                    else 'gaussian_fixed_illumination')
     xx, yy = np.meshgrid(x, x)
     kx = 2*np.pi*np.fft.fftfreq(n, pixel_pitch)
     ky = kx
     # Thread内のモードを先にコア加算し、位置ずれごとに一度だけ再射影する。
+    ideal_unapertured_sampled = np.zeros((n, n), dtype=np.complex128)
     physical_direct = np.zeros((n, n), dtype=np.complex128)
     periodic_fft = np.zeros((n, n), dtype=np.complex128)
     shifted_core_sum = np.zeros((80, 80), dtype=np.complex128)
     beam_rows = []
     factor_shift_x = factor_shift_y = None
     shift_example = None
-    for thread_id, (sx, sy) in enumerate(thread_shifts_px):
+    saved_operators_y, saved_operators_x = [], []
+    for thread_id, ((sx, sy), (dx_m, dy_m)) in enumerate(zip(thread_shifts_px, thread_shifts_m)):
         thread_mode_weights = thread_weights[thread_id]
         example_mode = int(np.argmax(np.abs(thread_mode_weights)))
         centered_thread_core = np.tensordot(thread_mode_weights, cores, axes=(0, 0))
-        phase_y = np.exp(-1j*ky*sy*pixel_pitch)
-        phase_x = np.exp(-1j*kx*sx*pixel_pitch)
-        ay = uy.T @ (phase_y[:, None]*uy)
-        ax = ux.T @ (phase_x[:, None]*ux)
+        phase_y = np.exp(-1j*ky*dy_m)
+        phase_x = np.exp(-1j*kx*dx_m)
+        ay, ax = shift_operators(uy, ux, pixel_pitch, (dx_m, dy_m))
+        saved_operators_y.append(ay)
+        saved_operators_x.append(ax)
         shifted_core_sum += ay @ centered_thread_core @ ax
         if factor_shift_y is None and (sx != 0 or sy != 0):
             factor_shift_y, factor_shift_x = ay, ax
         for i, (wave_number, weight) in enumerate(zip(kr, thread_mode_weights)):
             centered = (j0(wave_number*np.hypot(xx, yy))*aperture).astype(np.complex64)
-            shifted_direct = (j0(wave_number*np.hypot(xx-sx*pixel_pitch,
-                                                      yy-sy*pixel_pitch))*aperture).astype(np.complex64)
+            ideal_mode = j0(wave_number*np.hypot(xx-dx_m, yy-dy_m))
+            ideal_unapertured_sampled += weight*ideal_mode
+            shifted_direct = (ideal_mode*aperture).astype(np.complex64)
             physical_direct += weight*shifted_direct
             centered_fft = np.fft.fft2(centered, norm='ortho')
             shifted_full_fft = (phase_y[:, None]*centered_fft)*phase_x[None, :]
@@ -144,12 +159,14 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
             periodic_field = np.fft.ifft2(shifted_full_fft, norm='ortho')
             beam_rows.append({
                 'thread': thread_id, 'mode': i, 'kr_per_m': float(wave_number),
-                'shift_x_px': int(sx), 'shift_y_px': int(sy),
+                'shift_x_px': float(sx), 'shift_y_px': float(sy),
+                'shift_x_m': float(dx_m), 'shift_y_m': float(dy_m),
                 'centered_rank80_fft_error': relative_error(centered_fft, uy @ cores[i] @ ux.T),
                 'shifted_rank80_fft_error': relative_error(shifted_full_fft, shifted_rank_fft),
-                'fixed_aperture_vs_periodic_shift_error': relative_error(shifted_direct, periodic_field),
+                'fixed_illumination_vs_periodic_shift_error': relative_error(
+                    shifted_direct, periodic_field),
             })
-            print(f'Thread {thread_id+1}/{len(thread_shifts_px)}, mode {i+1}/{count}, shift=({sx:+d},{sy:+d}) pixels', flush=True)
+            print(f'Thread {thread_id+1}/{len(thread_shifts_px)}, mode {i+1}/{count}, shift=({sx:+.3f},{sy:+.3f}) pixels', flush=True)
     periodic_field = np.fft.ifft2(periodic_fft, norm='ortho')
     proposed_fft = uy @ shifted_core_sum @ ux.T
     proposed_field = np.fft.ifft2(proposed_fft, norm='ortho')
@@ -160,7 +177,7 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
         fig, axes = plt.subplots(3, 4, figsize=(17, 12), constrained_layout=True)
         fig.suptitle(
             f'FFT shift and shared-basis core projection: thread {example_thread}, '
-            f'mode {example_mode}, shift=({sx:+d}, {sy:+d}) pixels')
+            f'mode {example_mode}, shift=({sx:+.3f}, {sy:+.3f}) pixels')
         shifted = lambda a: np.fft.fftshift(a)
         def panel(ax, array, title, *, cmap='gray', symmetric=False):
             data = shifted(array)
@@ -232,7 +249,11 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     _, physical_codes, physical_clipped = codec.encode(physical_direct)
     _, periodic_codes, periodic_clipped = codec.encode(periodic_field)
     _, proposed_codes, proposed_clipped = codec.encode(proposed_field)
-    Image.fromarray(physical_codes).save(out/'cgh_fixed_aperture_direct.png')
+    Image.fromarray(physical_codes).save(out/f'cgh_{direct_model}_direct.png')
+    ideal_intensity = np.abs(ideal_unapertured_sampled)**2
+    Image.fromarray(np.rint(255*ideal_intensity/max(float(ideal_intensity.max()),
+                                                   np.finfo(float).tiny)).astype(np.uint8)
+                    ).save(out/'ideal_unapertured_sampled_intensity.png')
     Image.fromarray(periodic_codes).save(out/'cgh_uncompressed_periodic_shift.png')
     Image.fromarray(proposed_codes).save(out/'cgh_rank80_shifted_core.png')
     physical_replay = codec.replay(physical_codes)
@@ -241,26 +262,37 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     def circular_code_mae(first, second):
         delta = (first.astype(np.int16)-second.astype(np.int16)+128) % 256-128
         return float(np.mean(np.abs(delta)))
+    circular_phase_difference = np.angle(np.exp(1j*(
+        (proposed_codes.astype(float)-periodic_codes.astype(float))*2*np.pi/256)))
     phase_info = phase_metrics(periodic_field, proposed_field)[2]
     report = {
         'rank': 80, 'config_id': saved_id, 'mode_count': count,
-        'shift_units': 'output-plane pixels [x,y] per Thread', 'thread_count': len(thread_shifts_px), 'output_pixel_pitch_m': pixel_pitch,
+        'direct_model': direct_model,
+        'ideal_reference': 'unapertured J0 sampled on the finite grid; not an infinite-aperture propagation result',
+        'fixed_illumination_vs_unapertured_sampled_field_error': relative_error(
+            ideal_unapertured_sampled, physical_direct),
+        'shift_units': 'output-plane metres and fractional pixels [x,y] per Thread',
+        'thread_count': len(thread_shifts_px), 'output_pixel_pitch_m': pixel_pitch,
         'shift_seed': seed if generated_shifts else None,
         'pattern_labels': None if pattern_labels is None else list(pattern_labels),
         'rank80_vs_uncompressed_periodic_field_error': relative_error(periodic_field, proposed_field),
         'rank80_vs_uncompressed_periodic_fft_error': relative_error(periodic_fft, proposed_fft),
-        'fixed_aperture_vs_periodic_shift_field_error': relative_error(physical_direct, periodic_field),
-        'rank80_vs_fixed_aperture_direct_field_error': relative_error(physical_direct, proposed_field),
+        'fixed_illumination_vs_periodic_shift_field_error': relative_error(physical_direct, periodic_field),
+        'rank80_vs_fixed_illumination_direct_field_error': relative_error(physical_direct, proposed_field),
         'rank80_vs_periodic_cgh_replay_error': relative_error(periodic_replay, proposed_replay),
-        'fixed_aperture_vs_periodic_cgh_replay_error': relative_error(physical_replay, periodic_replay),
-        'rank80_vs_fixed_aperture_cgh_replay_error': relative_error(physical_replay, proposed_replay),
+        'rank80_vs_periodic_cgh_replay_intensity_error': relative_error(
+            np.abs(periodic_replay)**2, np.abs(proposed_replay)**2),
+        'rank80_vs_periodic_cgh_circular_phase_mae_rad': float(
+            np.mean(np.abs(circular_phase_difference))),
+        'fixed_illumination_vs_periodic_cgh_replay_error': relative_error(physical_replay, periodic_replay),
+        'rank80_vs_fixed_illumination_cgh_replay_error': relative_error(physical_replay, proposed_replay),
         'rank80_vs_periodic_cgh_code_mae': circular_code_mae(periodic_codes, proposed_codes),
-        'rank80_vs_fixed_aperture_cgh_code_mae': circular_code_mae(physical_codes, proposed_codes),
+        'rank80_vs_fixed_illumination_cgh_code_mae': circular_code_mae(physical_codes, proposed_codes),
         'cgh_saturation': {'direct': physical_clipped, 'periodic': periodic_clipped,
                            'rank80': proposed_clipped},
         'phase_metrics_against_periodic_reference': phase_info,
-        'warning': 'Integer FFT shifts are periodic. Core translation is projection into the original basis. '
-                   'Both differ from shifted J0 times the fixed square aperture. '
+        'warning': 'FFT shifts use a periodic band-limited field, including fractional pixels. Core translation is projection into the original basis. '
+                   'Both differ from shifted J0 times the selected fixed illumination. '
                    'Each Thread shifts all its Bessel modes together. This is a multi-Thread field synthesis check, not a 50 cm reach or timing result.',
     }
     with (out/'mode_errors.csv').open('w', newline='', encoding='utf-8-sig') as stream:
@@ -269,8 +301,13 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
         writer.writerows(beam_rows)
     with (out/'shifts_pixels.csv').open('w', newline='', encoding='utf-8-sig') as stream:
         writer = csv.writer(stream)
-        writer.writerow(['thread', 'shift_x_px', 'shift_y_px'])
-        writer.writerows((i, *map(int, pair)) for i, pair in enumerate(thread_shifts_px))
+        writer.writerow(['thread', 'shift_x_px', 'shift_y_px', 'shift_x_m', 'shift_y_m'])
+        writer.writerows((i, *map(float, pair), *map(float, thread_shifts_m[i]))
+                         for i, pair in enumerate(thread_shifts_px))
+    if save_shift_operators:
+        np.savez_compressed(out/'shift_operators.npz',
+                            ay=np.stack(saved_operators_y), ax=np.stack(saved_operators_x),
+                            shift_xy_m=thread_shifts_m, config_id=saved_id)
     (out/'metrics.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     np.savez_compressed(out/'comparison_fields.npz', direct=physical_direct,
                         periodic=periodic_field, rank80=proposed_field,
@@ -281,7 +318,7 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
                         thread_weights=thread_weights)
     fig, axes = plt.subplots(2, 3, figsize=(15, 9), constrained_layout=True)
     fields = [physical_direct, periodic_field, proposed_field]
-    titles = ['Direct J0 × fixed aperture', 'Uncompressed FFT periodic shift',
+    titles = [f'Direct J0 × {direct_model}', 'Uncompressed FFT periodic shift',
               'Rank80 shifted core projection']
     vmax = max(float(np.abs(f).max()**2) for f in fields)
     for j, (field, title) in enumerate(zip(fields, titles)):
@@ -301,7 +338,7 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     fig, axes = plt.subplots(2, 3, figsize=(15, 9), constrained_layout=True)
     for j, (codes, title) in enumerate(zip(
             [physical_codes, periodic_codes, proposed_codes],
-            ['Direct fixed-aperture CGH', 'Uncompressed periodic CGH',
+            [f'Direct {direct_model} CGH', 'Uncompressed periodic CGH',
              'Rank80 shifted-core CGH'])):
         axes[0, j].imshow(codes, cmap='gray', vmin=0, vmax=255,
                           interpolation='nearest')

@@ -1,3 +1,4 @@
+"""Legacy: kr=10の無次元Bessel試験図。現在の物理LSH条件には使用しない。"""
 # 日本語説明：Besselビームとそのフーリエ変換を画像で確認する可視化用スクリプトです。圧縮データの作成には不要です。
 import contextlib
 import io
