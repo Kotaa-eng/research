@@ -1,0 +1,13 @@
+# Generated Python and notebook files
+__pycache__/
+.ipynb_checkpoints/
+test_before_consistency_review_*.ipynb
+
+# Numerical results and exported figures; keep them locally.
+verified_thread_runs/
+rank_survey_outputs*/
+thread_outputs*/
+radius_tucker_outputs/
+bessel_*.png
+lsh_audit_summary.png
+*.npz

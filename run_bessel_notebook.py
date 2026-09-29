@@ -1,4 +1,5 @@
-﻿import ast
+# 日本語説明：ノートブックを外部から実行する従来の補助スクリプトです。現在の通常手順では使用せず、IDEから必要なセルを実行してください。
+import ast
 import base64
 import contextlib
 import io
