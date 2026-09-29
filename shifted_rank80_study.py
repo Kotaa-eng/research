@@ -113,8 +113,10 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     shifted_core_sum = np.zeros((80, 80), dtype=np.complex128)
     beam_rows = []
     factor_shift_x = factor_shift_y = None
+    shift_example = None
     for thread_id, (sx, sy) in enumerate(thread_shifts_px):
         thread_mode_weights = thread_weights[thread_id]
+        example_mode = int(np.argmax(np.abs(thread_mode_weights)))
         centered_thread_core = np.tensordot(thread_mode_weights, cores, axes=(0, 0))
         phase_y = np.exp(-1j*ky*sy*pixel_pitch)
         phase_x = np.exp(-1j*kx*sx*pixel_pitch)
@@ -134,6 +136,11 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
             # 元の共通基底への直交再射影。移動位相はコアの単なる定数倍ではない。
             projected_core = ay @ cores[i] @ ax
             shifted_rank_fft = uy @ projected_core @ ux.T
+            if shift_example is None and (sx != 0 or sy != 0) and i == example_mode:
+                shift_example = (thread_id, i, sx, sy, centered_fft.copy(),
+                                 shifted_full_fft.copy(), projected_core.copy(),
+                                 shifted_rank_fft.copy(), phase_y.copy(), phase_x.copy(),
+                                 ay.copy(), ax.copy())
             periodic_field = np.fft.ifft2(shifted_full_fft, norm='ortho')
             beam_rows.append({
                 'thread': thread_id, 'mode': i, 'kr_per_m': float(wave_number),
@@ -146,6 +153,79 @@ def run_shifted_rank80(library_path, output_dir, *, kr, weights,
     periodic_field = np.fft.ifft2(periodic_fft, norm='ortho')
     proposed_fft = uy @ shifted_core_sum @ ux.T
     proposed_field = np.fft.ifft2(proposed_fft, norm='ortho')
+    if shift_example is not None:
+        (example_thread, example_mode, sx, sy, centered_fft, shifted_full_fft,
+         projected_core, shifted_rank_fft, phase_y, phase_x, ay, ax) = shift_example
+        centered_approx = uy @ cores[example_mode] @ ux.T
+        fig, axes = plt.subplots(3, 4, figsize=(17, 12), constrained_layout=True)
+        fig.suptitle(
+            f'FFT shift and shared-basis core projection: thread {example_thread}, '
+            f'mode {example_mode}, shift=({sx:+d}, {sy:+d}) pixels')
+        shifted = lambda a: np.fft.fftshift(a)
+        def panel(ax, array, title, *, cmap='gray', symmetric=False):
+            data = shifted(array)
+            if symmetric:
+                vmax = max(float(np.max(np.abs(data))), np.finfo(float).tiny)
+                im = ax.imshow(data, origin='lower', cmap=cmap,
+                               vmin=-vmax, vmax=vmax, interpolation='nearest')
+            else:
+                im = ax.imshow(data, origin='lower', cmap=cmap,
+                               interpolation='nearest')
+            ax.set(title=title, xlabel='kx pixel', ylabel='ky pixel')
+            fig.colorbar(im, ax=ax, fraction=0.046)
+        freq = np.fft.fftshift(np.fft.fftfreq(n, pixel_pitch))/1e3
+        axes[0, 0].plot(freq, np.angle(np.fft.fftshift(phase_x)))
+        axes[0, 0].set(title='x shift phase: angle(Dx)', xlabel='fx [cycles/mm]',
+                       ylabel='phase [rad]')
+        axes[0, 1].plot(freq, np.angle(np.fft.fftshift(phase_y)))
+        axes[0, 1].set(title='y shift phase: angle(Dy)', xlabel='fy [cycles/mm]',
+                       ylabel='phase [rad]')
+        panel(axes[0, 2], np.angle(phase_y[:, None]*phase_x[None, :]),
+              '2D shift phase: angle(Dy Dx)', cmap='twilight', symmetric=True)
+        panel(axes[0, 3], np.angle(shifted_full_fft*np.conj(centered_fft)),
+              'FFT phase change', cmap='twilight', symmetric=True)
+        common_fft_scale = max(float(np.abs(centered_fft).max()),
+                               np.finfo(float).tiny)
+        panel(axes[1, 0], np.abs(centered_fft)/common_fft_scale,
+              'Original FFT magnitude')
+        panel(axes[1, 1], np.abs(shifted_full_fft)/common_fft_scale,
+              'Shifted FFT magnitude (unchanged)')
+        panel(axes[1, 2], np.abs(shifted_full_fft)-np.abs(centered_fft),
+              'Magnitude difference (numerical zero)', cmap='coolwarm', symmetric=True)
+        panel(axes[1, 3], np.abs(shifted_full_fft-shifted_rank_fft)/common_fft_scale,
+              'Shifted FFT - projected reconstruction')
+        common_core_scale = max(float(np.abs(cores[example_mode]).max()),
+                                float(np.abs(projected_core).max()),
+                                np.finfo(float).tiny)
+        axes[2, 0].imshow(np.abs(cores[example_mode])/common_core_scale,
+                          origin='lower', cmap='gray', vmin=0, vmax=1)
+        axes[2, 0].set(title='Stored core C', xlabel='rank x', ylabel='rank y')
+        axes[2, 1].imshow(np.abs(projected_core)/common_core_scale,
+                          origin='lower', cmap='gray', vmin=0, vmax=1)
+        axes[2, 1].set(title='Shifted core Ay C Ax', xlabel='rank x', ylabel='rank y')
+        panel(axes[2, 2], np.abs(shifted_rank_fft)/common_fft_scale,
+              'Reconstruction Uy (Ay C Ax) Ux.T')
+        axes[2, 3].axis('off')
+        axes[2, 3].text(0, 1,
+            'F = Uy C Ux.T (approx.)\n'
+            'F_shift = Dy F Dx (exact periodic shift)\n'
+            'Ay = Uy.T Dy Uy,  Ax = Ux.T Dx Ux\n'
+            'C_shift = Ay C Ax  (projection)\n\n'
+            f'Centered approximation error: '
+            f'{relative_error(centered_fft, centered_approx):.3e}\n'
+            f'Shifted projection error: '
+            f'{relative_error(shifted_full_fft, shifted_rank_fft):.3e}\n\n'
+            'A common basis remains usable after projection,\n'
+            'but translation can leave its subspace.',
+            va='top', family='monospace', fontsize=10)
+        ring_radius_px = kr[example_mode]/(2*np.pi) * n*pixel_pitch
+        half_width_px = min(n/2, max(1.2*ring_radius_px, 4))
+        for row, col in [(0, 2), (0, 3), (1, 0), (1, 1),
+                         (1, 2), (1, 3), (2, 2)]:
+            axes[row, col].set_xlim(n/2-half_width_px, n/2+half_width_px)
+            axes[row, col].set_ylim(n/2-half_width_px, n/2+half_width_px)
+        fig.savefig(out/'core_shift_mechanism.png', dpi=130)
+        plt.close(fig)
     # 1つの図の中では同じ振幅・強度スケール。圧縮誤差と開口移動誤差を別評価。
     scale = float(np.abs(physical_direct).max())
     codec = PhaseOnlyCodec((n, n), pixel_pitch, slm_pixel_pitch, kr, scale)

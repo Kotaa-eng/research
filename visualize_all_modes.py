@@ -46,8 +46,12 @@ def export_all_modes(bessel_centered, bessel_fft, core_complex,
         fft_amplitudes = [np.abs(v) for v in spectra]
         amplitude_scale = max(float(v.max()) for v in amplitudes)
         fft_scale = max(float(v.max()) for v in fft_amplitudes)
+        fft_component_scale = max(float(np.max(np.abs(component)))
+                                  for spectrum in spectra
+                                  for component in (spectrum.real, spectrum.imag))
         amplitude_scale = max(amplitude_scale, np.finfo(float).tiny)
         fft_scale = max(fft_scale, np.finfo(float).tiny)
+        fft_component_scale = max(fft_component_scale, np.finfo(float).tiny)
         folder = out / f'mode_{i:02d}_m{int(mode_index[i]):+d}'
         folder.mkdir(exist_ok=True)
         fig, axes = plt.subplots(2, 5, figsize=(21, 8))
@@ -100,12 +104,27 @@ def export_all_modes(bessel_centered, bessel_fft, core_complex,
                 'fft_amplitude': fft_amplitudes[row]/fft_scale,
                 'fft_amplitude_db': (np.clip(db, -80, 0)+80)/80,
                 'fft_phase_wrapped_gray': np.where(fft_mask, 0.5, (fft_phase+np.pi)/(2*np.pi)),
+                # Full FFT grid: no crop or interpolation. Middle gray is zero;
+                # real and imaginary parts share one scale for both methods.
+                'fft_real': 0.5 + 0.5*spectra[row].real/fft_component_scale,
+                'fft_imag': 0.5 + 0.5*spectra[row].imag/fft_component_scale,
                 'phase_cos': np.where(spatial_mask, 0.5, (np.cos(phase)+1)/2),
                 'phase_sin': np.where(spatial_mask, 0.5, (np.sin(phase)+1)/2),
             }
+            component_images = {}
             for name, pixels in images.items():
-                Image.fromarray(np.rint(np.clip(pixels, 0, 1)*255).astype(np.uint8)).save(
-                    folder / f'{label}_{name}.png')
+                component_images[name] = Image.fromarray(
+                    np.rint(np.clip(pixels, 0, 1)*255).astype(np.uint8))
+                component_images[name].save(folder / f'{label}_{name}.png')
+            # Four full-resolution 1024x1024 panels (for a 1024x1024 input).
+            # Order: amplitude, phase, real part, imaginary part.
+            montage = Image.new('L', (2*nx, 2*ny))
+            for name, position in [('fft_amplitude', (0, 0)),
+                                   ('fft_phase_wrapped_gray', (nx, 0)),
+                                   ('fft_real', (0, ny)),
+                                   ('fft_imag', (nx, ny))]:
+                montage.paste(component_images[name], position)
+            montage.save(folder / f'{label}_fft_complex_components_full.png')
             for name, values, mask_values in [('phase', phase, spatial_mask),
                                               ('fft_phase', fft_phase, fft_mask)]:
                 rgba = plt.get_cmap('twilight')((values+np.pi)/(2*np.pi))
@@ -140,7 +159,12 @@ def export_all_modes(bessel_centered, bessel_fft, core_complex,
         # 全周波数範囲ではリングが中心の数画素に縮んで見えるため、
         # 予測リング半径 kr/(2π) を基準に同じ倍率の拡大図を別途出力する。
         ring_frequency = float(kr[i])/(2*np.pi*1e3)  # cycles/mm
-        zoom_halfwidth = max(1.5*ring_frequency, 4*max(dfx, dfy))
+        # Use frequency units for the FFT panels. The ring occupies a small
+        # fraction of the full Nyquist range because kr/(2*pi) is much lower
+        # than 1/(2*pixel_pitch). Frame the ring with a 12% margin so that
+        # its displayed diameter nearly fills each panel, without rescaling
+        # or changing the FFT data itself.
+        zoom_halfwidth = max(1.12*ring_frequency, 4*max(dfx, dfy))
         for row in range(2):
             for col in (2, 3, 4):
                 axes[row, col].set_xlim(-zoom_halfwidth, zoom_halfwidth)
