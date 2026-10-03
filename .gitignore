@@ -5,6 +5,10 @@ test_before_consistency_review_*.ipynb
 
 # Numerical results and exported figures; keep them locally.
 verified_thread_runs/
+stage_a_outputs*/
+lsh_digit1*outputs*/
+lsh_digit1_complex_only*/
+lsh_digit1_proposed_rank*/
 rank_survey_outputs*/
 thread_outputs*/
 radius_tucker_outputs/

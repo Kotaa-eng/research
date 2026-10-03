@@ -1,24 +1,38 @@
-# 現在の研究条件（2026-09-29）
+# 現在の主経路：Stage A アルゴリズム整合性検証
 
-目的は、Bessel/Frozen Waveの複素初期場からphase-only CGHを作るオンライン処理を、FFT後の共通Tucker基底とモード別コアで短縮できるか検証すること。SLMへの実表示や実測結果ではない。
+SLMまでの時間は [lsh_digit1_slm_timing.ipynb](lsh_digit1_slm_timing.ipynb)。マスク生成と検証用4f再生を分離し、入力更新→フレーム準備→同期表示関数の完了を計測する。未接続なら表示時間は未計測。実機SDK接続は型番・表示方式の確認後に行う。詳細は [LSH数字1_SLM表示時間.md](LSH数字1_SLM表示時間.md)。
 
-| 項目 | 現在の設定 |
-|---|---|
+数字1提案法は `shift_aware` 基底へ修正した。整数原点の中心J0だけから得た旧x基底は偶成分に偏り、移動後の非対称成分を落としていた。正負のThread位置を含めてUxを学習し、Uyとは別に保持する。入口は [lsh_digit1_proposed.ipynb](lsh_digit1_proposed.ipynb)、新結果は `lsh_digit1_proposed_rank100_shiftaware_v2/`。旧v1結果とは混用しない。詳細は [LSH数字1_左右対称化の修正.md](LSH数字1_左右対称化の修正.md)。
+
+波数密度の比較は [lsh_digit1_kr_spacing.ipynb](lsh_digit1_kr_spacing.ipynb)。元のkr端点と伝搬範囲を保ち、kz間隔を1/2・1/4にして15・29・57モードで比較する。ランク100は固定し、目標再現とシフト射影誤差を分けて集計する。詳細は [LSH数字1_kr間隔比較.md](LSH数字1_kr間隔比較.md)。
+
+数字1の提案法による伝搬検証は [lsh_digit1_proposed.ipynb](lsh_digit1_proposed.ipynb)。理論版の設定を読み、直接J0生成とThreadごとの圧縮コア加算・シフトを比較する。ランク100から開始し、有限複素場と振幅符号化CGHの2経路を同じ条件で伝搬する。圧縮辞書は理論版と同じ整数画素原点で専用に作成し、旧Stage A辞書とは混用しない。実行はユーザー側で行う。詳細は [LSH数字1_提案法検証.md](LSH数字1_提案法検証.md)。
+
+数字1の1枚のシートを、圧縮なしで理論伝搬させる入口を [lsh_digit1_theory.ipynb](lsh_digit1_theory.ipynb) に追加した。y=0のx–zシートを設計し、zごとの理想センサーx–y画像と、抽出した横断線の連結画像を保存する。詳細は [LSH数字1_理論検証.md](LSH数字1_理論検証.md)。Stage Aの計算時間・復元誤差評価とは別の結果フォルダへ保存する。
+
+目的は、**理論J0複素場 → FFT → 共通Tucker基底 → コア内加算・xシフト → 実空間因子による直接復元 → 理想数値phase-only CGH** が、各位置でBessel場を直接再計算した結果とどこまで一致するか、そしてオンライン計算時間がどれだけ変わるかを調べること。実機LSH再現、50 cmでの実伝搬、レーザー照明・開口・4f系の検証ではない。
+
+| Stage A の固定条件 | 値 |
+|---|---:|
 | 波長 | 532 nm |
-| SLM | 2048×2048、3.74 µmピッチの実機候補 |
-| 4f横倍率の絶対値 | 1/4 |
-| 出力結像面 | 0.935 µm/画素、約1.915 mm全幅。ここをz=0とする |
-| spot第1零点半径 | 主実行の暫定値100 µm。30,40,50,60,80,100,120 µmを掃引して選ぶ |
-| z方向設計長 | 0.50 m。50 cmでの有意強度を保証する値ではない |
-| レーザー照明直径・waist | 未確定。`None` は全面一様照明の理想上限 |
-| レンズ・絞り有効径 | 未確定。制限が分かり次第、出力面換算直径を設定する |
+| 数値格子 | 2048×2048 |
+| 数値画素間隔 | 3.74 µm |
+| 数値窓幅 | 7.65952 mm |
+| Bessel方位次数 | n=0 |
+| 中心モードの第1零点半径 | 50 µm |
+| Frozen-Waveモード定義の長さ | L=0.50 m |
+| 共有Tucker空間ランク | 標準値64。`stage_a.ipynb` は追加検証として80に指定 |
+| 同軸検証 | seed=42で全モードから10個選択し、同じ複素重みで加算 |
+| xシフト検証 | 同じ10個のモードを10本のThreadへ配置、150 µm間隔、yシフトなし |
 
-`lsh_parameters.py` が数値のsource of truth。`test.ipynb` は主検証、`test2.ipynb` は移動位相と再射影の小例。`lsh_core.py` に物理開口、共通FFT基底、コア移動、空間基底、phase-only符号化を置く。`rank_survey.py` がランク調査、`radius_tucker_study.py` が半径調査、`shifted_rank80_study.py` と `multi_pattern_rank80_study.py` が移動Thread/CGH比較、`lsh_online_benchmark.py` が5方式のオンライン内訳計測。
+モードは `kr_center=2.4048255577/r0`, `Q=sqrt(k0²-kr_center²)`, `kz_m=Q+2πm/L`, `kr_m=sqrt(k0²-kz_m²)` から自動生成する。対称の `m=-M,…,M` とし `0<kz_m≤k0` を満たす。上記の値では **m=-7…7 の15モード**が見込まれる。個数は実行時に検査・記録する。
 
-基本は方位次数n=0。FWのスペクトル番号mは別物。`kr`は `kz_m=Q+2πm/L` と分散関係から計算し、等間隔の `kr` を仮定しない。1本のThread内では全mを同軸に重み付けし、Thread単位で同じ位置へ移動する。
+事前に周波数因子の各列をIFFTして `Vy,Vx` を保存し、オンラインでは `E = Vy @ C_total @ Vx.T` で復元する。従来の全画素FFT復元＋IFFTと数学的に等価で、オンラインの全画素IFFTを省く。2経路の一致誤差と、ウォームアップ後3回の復元時間の中央値を別途記録する。現時点で新経路の実測値はまだ確認していない。
 
-`F≈Uy C Ux.T` の移動後は `Ay=Uy.T Dy Uy`, `Ax=Ux.T Dx Ux`, `C_shift=Ay C Ax`。同じ共通基底への**再射影近似**であり、移動した場を厳密に表現する保証はない。FFTの連続移動は周期的帯域制限補間。固定開口を持つ直接生成との差は別の誤差として記録する。
+全モードでFFTの複素値から `[Re/Im,mode,ky,kx]` を構成し、共有因子 `Uy,Ux` とモード別複素コア `C_m` を得る。圧縮後の各モードのFFT・IFFT誤差、Parseval整合性、同軸コア加算の誤差を測る。シフト加算の直接法は、各Threadの位置で全Bessel場を実空間で再計算して加算する。10モード×10本なら100回のビーム計算で、非圧縮FFTの事前保存データはオンラインで使わない。提案法の `Ax=Ux.T Dx Ux` は元の共有部分空間への再射影近似なので、シフトが大きいほど誤差が増える可能性がある。
 
-現時点の幾何学的到達距離は `R kz/kr` の目安。`LASER_DIAMETER=None` 等のときはSLM全面の**理想上限**で、実際の50 cm到達を主張できない。Gaussian照明のwaistは硬い開口ではなく、1/e振幅で定義した目安。有限開口の伝搬計算と収束確認が別途必要。CGH再生の一致も実機画質の保証ではない。
+位相の差は `arg(E_rec conj(E_ref))` で評価し、基準・復元の両方が基準最大振幅の1%を超える画素で位相指標を計算する。基準で明るいのに復元で暗くなった画素の割合とエネルギーも別に記録する。全モードの振幅・強度にSSIM・PSNR・SNR、複素場にSNRを追加し、同軸・シフト後の場にも同じ指標を使う。シフト直接法は実空間の解析式、提案法は周期FFTシフトなので、そのモデル差を `shifted.periodic_shift_model` に分離して示す。全モードの振幅・位相・FFT画像を保存し、数値指標と画像を混同しない。CGHは同一の理想数値エンコードを基準と提案法に適用し、円周位相差・8-bit差を評価する。通常の8-bit SSIM/PSNRは位相の折り返しに弱いため参考値とし、円周コードPSNRを併記する。振幅回復、光学伝搬、フィルタを含むreplayは未実装なので、CGHの一致だけで再生光場の一致を主張しない。これは校正済みの実機SLM表示パターンではない。
 
-`LSH_validation_report.md` と `lsh_audit_results.json` は旧1024画素/旧モード構成の履歴。`visualize_bessel_fft.py` は `kr=10` の無次元legacy図。`audit_lsh.py`, `plot_lsh_audit.py`, `run_bessel_notebook.py` と既存の出力ディレクトリも主条件の根拠にしない。設定変更後はノートブックを先頭から再実行し、同じconfig IDの出力だけ比較する。
+`stage_a_validation.py` を主実行スクリプトとし、結果は専用の `stage_a_outputs/` に保存する。`test.ipynb`、`lsh_parameters.py`、`lsh_core.py`、`radius_tucker_study.py`、`shifted_rank80_study.py` 等は物理条件や以前の目的を含む **Stage B候補／legacy**。`verified_thread_runs/` の旧画像・JSONはStage Aの結果として使わない。実行方法・出力一覧は [コード説明.md](コード説明.md) を参照。
+
+Stage A後に物理条件を導入するときは、SLM面と出力面の座標、レーザー径、開口、Gaussian包絡、4f系、伝搬収束、位相LUTをそれぞれ追加・再検証する。
