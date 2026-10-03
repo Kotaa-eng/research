@@ -7,6 +7,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -14,10 +15,69 @@ import numpy as np
 from lsh_digit1_theory import (
     AngularSpectrum, Digit1Config, encode_and_replay, fourier_coefficients,
     mode_design, run_digit1,
+    config_payload, digit_target, sheet_display,
 )
 
 
 class Digit1TheoryTests(unittest.TestCase):
+    def test_zx_changes_target_and_preserves_internal_array_order(self):
+        config = Digit1Config()
+        q = (np.arange(23)+.5)/23
+        x = (q-.5)*config.digit_width_m
+        z = config.digit_z_start_m+q*(config.digit_z_end_m-config.digit_z_start_m)
+        xz = digit_target(x, z, config)
+        zx = digit_target(x, z, replace(config, digit_axes="zx"))
+        np.testing.assert_array_equal(zx, xz.T)
+        self.assertFalse(np.array_equal(xz, zx))
+        values, extent, xlabel, ylabel = sheet_display(zx, x, z, np.ones(len(x), dtype=bool), "zx")
+        np.testing.assert_array_equal(values, zx.T)
+        self.assertEqual((xlabel, ylabel), ("z [mm]", "x [mm]"))
+        self.assertAlmostEqual(extent[0], z[0]*1000)
+
+    def test_old_config_without_orientation_remains_compatible(self):
+        current = config_payload(Digit1Config())
+        old = dict(current)
+        old.pop("digit_axes")
+        old.pop("target_digits")
+        old.pop("digit_gap_fraction")
+        old.pop("coefficient_design")
+        old.pop("coefficient_fit_x_samples")
+        old.pop("coefficient_ridge_relative")
+        self.assertEqual(config_payload(old), current)
+
+    def test_123_is_three_separated_digits_on_one_zx_sheet(self):
+        config = Digit1Config(target_digits="123", digit_axes="zx")
+        # 上部の横断線が、独立した3文字と背景の隙間を通ることを確認。
+        u = (np.arange(1201) + .5) / 1201
+        x = np.array([.4 * config.digit_width_m])
+        z = config.digit_z_start_m + u * (config.digit_z_end_m-config.digit_z_start_m)
+        target = digit_target(x, z, config)
+        self.assertEqual(target.shape, (1201, 1))
+        transitions = np.diff(np.r_[False, target[:, 0].astype(bool), False].astype(int))
+        self.assertEqual(np.count_nonzero(transitions == 1), 3)
+        self.assertEqual(np.count_nonzero(transitions == -1), 3)
+        square_x = (u-.5)*config.digit_width_m
+        xz = digit_target(square_x, z, replace(config, digit_axes="xz"))
+        zx = digit_target(square_x, z, config)
+        np.testing.assert_array_equal(zx, xz.T)
+
+    def test_two_and_three_have_different_lower_stems(self):
+        config = Digit1Config()
+        x = (np.array([.2, .8])-.5)*config.digit_width_m
+        z = np.array([config.digit_z_start_m + .3*(config.digit_z_end_m-config.digit_z_start_m)])
+        np.testing.assert_array_equal(digit_target(x, z, replace(config, target_digits="2")), [[1, 0]])
+        np.testing.assert_array_equal(digit_target(x, z, replace(config, target_digits="3")), [[0, 1]])
+
+    def test_longer_design_adds_modes_with_consistent_dispersion(self):
+        config = Digit1Config(target_digits="123", digit_axes="zx")
+        short = mode_design(config)
+        long = mode_design(replace(config, design_length_m=1.0,
+                                  digit_z_start_m=.15, digit_z_end_m=.85))
+        self.assertGreater(long.count, short.count)
+        np.testing.assert_allclose(long.kz_per_m**2 + long.kr_per_m**2,
+                                   long.k0_per_m**2, rtol=1e-14)
+        self.assertAlmostEqual(long.kr_center_per_m, short.kr_center_per_m)
+
     def test_coefficients_use_amplitude_and_correct_fourier_sign(self):
         length, count = 0.5, 128
         z = (np.arange(count) + .5) * length / count

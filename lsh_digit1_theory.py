@@ -66,8 +66,25 @@ class Digit1Config:
     sensor_z_m: tuple[float, ...] = (0.0, 0.10, 0.25, 0.40, 0.50)
     check_padding: bool = False
     padding_check_factor: int = 3
+    digit_axes: str = "xz"  # 正立する図の横/縦軸。zxなら横z・縦x。
+    target_digits: str = "1"  # 同じシート内で横に並べる数字。旧結果は1を補完する。
+    digit_gap_fraction: float = 0.18  # 数字のセル幅に対するセル間の余白
+    coefficient_design: str = "independent_threads"
+    coefficient_fit_x_samples: int = 401
+    coefficient_ridge_relative: float = 1e-3
 
     def __post_init__(self) -> None:
+        if self.digit_axes not in ("xz", "zx"):
+            raise ValueError("digit_axes must be xz or zx")
+        if (not isinstance(self.target_digits, str) or not self.target_digits
+                or any(char not in "123" for char in self.target_digits)):
+            raise ValueError("target_digits must be a nonempty string containing only 1, 2, 3")
+        if not 0 <= self.digit_gap_fraction <= 1:
+            raise ValueError("digit_gap_fraction must lie inside [0, 1]")
+        if self.coefficient_design not in ("independent_threads", "coupled_least_squares"):
+            raise ValueError("unknown coefficient_design")
+        if self.coefficient_fit_x_samples < 3 or not 0 < self.coefficient_ridge_relative <= 1:
+            raise ValueError("coefficient fit needs >=3 x samples and ridge in (0,1]")
         if self.carrier_period_pixels < 3 or self.padding_factor < 1:
             raise ValueError("carrier period must be >=3 and padding_factor >=1")
         if (self.grid_size < 16 or self.grid_size % 2
@@ -110,19 +127,54 @@ def mode_design(config: Digit1Config) -> ModeDesign:
         design_length_m=config.design_length_m, rank=1, selected_mode_count=1))
 
 
+def config_payload(config: Digit1Config | dict) -> dict:
+    """旧結果の不足設定を標準値で補完し、JSONとして設定を比較する。"""
+    if isinstance(config, dict):
+        config = Digit1Config(**config)
+    return json.loads(json.dumps(asdict(config)))
+
+
+def sheet_display(image: np.ndarray, x: np.ndarray, z: np.ndarray,
+                  roi: np.ndarray, digit_axes: str = "xz") -> tuple:
+    """内部の[z,x]配列を指定された表示軸へ変換。物理場は変更しない。"""
+    if digit_axes == "xz":
+        return (image[:, roi], [x[roi][0]*1000, x[roi][-1]*1000, z[0]*1000, z[-1]*1000],
+                "x [mm]", "z [mm]")
+    if digit_axes == "zx":
+        return (image[:, roi].T, [z[0]*1000, z[-1]*1000, x[roi][0]*1000, x[roi][-1]*1000],
+                "z [mm]", "x [mm]")
+    raise ValueError("digit_axes must be xz or zx")
+
+
 def digit_target(x_m: np.ndarray, z_m: np.ndarray, config: Digit1Config) -> np.ndarray:
-    """[z,x] binary intensity target, drawn as a stem, upper flag and lower foot."""
-    # 複製画像・フォント依存を避け、数字1の輪郭を正規化座標で定義する。
-    vertices = np.array([
+    """[z,x] binary intensity target; glyphs share one sheet and one field."""
+    # フォントに依存しない輪郭。単独の1は従来と同じ形・寸法にする。
+    glyphs = {"1": [
         [.10, .00], [.90, .00], [.90, .12], [.62, .12], [.62, 1.00],
         [.43, 1.00], [.10, .73], [.24, .60], [.42, .76], [.42, .12],
         [.10, .12], [.10, .00],
-    ])
+    ], "2": [
+        [.10, 1.00], [.90, 1.00], [.90, .48], [.30, .48], [.30, .18],
+        [.90, .18], [.90, .00], [.10, .00], [.10, .65], [.70, .65],
+        [.70, .82], [.10, .82], [.10, 1.00],
+    ], "3": [
+        [.10, 1.00], [.90, 1.00], [.90, .00], [.10, .00], [.10, .18],
+        [.70, .18], [.70, .41], [.20, .41], [.20, .59], [.70, .59],
+        [.70, .82], [.10, .82], [.10, 1.00],
+    ]}
     u, v = np.meshgrid(np.asarray(x_m) / config.digit_width_m + 0.5,
                        (np.asarray(z_m) - config.digit_z_start_m)
                        / (config.digit_z_end_m - config.digit_z_start_m))
-    return PolygonPath(vertices, closed=True).contains_points(
-        np.column_stack((u.ravel(), v.ravel()))).reshape(u.shape).astype(np.float64)
+    if config.digit_axes == "zx":
+        u, v = v, u  # 目標自体を変えてから係数を設計する。出力配列は[z,x]。
+    count = len(config.target_digits)
+    units = count + config.digit_gap_fraction * (count - 1)
+    target = np.zeros(u.shape, dtype=bool)
+    for index, digit in enumerate(config.target_digits):
+        local_u = u * units - index * (1 + config.digit_gap_fraction)
+        target |= PolygonPath(glyphs[digit], closed=True).contains_points(
+            np.column_stack((local_u.ravel(), v.ravel()))).reshape(u.shape)
+    return target.astype(np.float64)
 
 
 def fourier_coefficients(amplitude: np.ndarray, z_midpoints: np.ndarray,
@@ -139,6 +191,53 @@ def fourier_coefficients(amplitude: np.ndarray, z_midpoints: np.ndarray,
         raise ValueError("coefficient integration requires uniform midpoint samples")
     return (np.exp(-2j * np.pi * modes[:, None] * z_midpoints[None, :] / length_m)
             @ amplitude) / len(z_midpoints)
+
+
+def fit_transverse_coefficients(x: np.ndarray, positions: np.ndarray,
+                               kr: np.ndarray, target_modes: np.ndarray,
+                               ridge_relative: float) -> np.ndarray:
+    """各mでJ0の重なりを含むB_m A_m≈F_mを正則化SVDで解く。
+
+    λ=relative*s_max(B_m)^2。独立Threadの強度を足す近似はしない。
+    target_modesは目標複素振幅のz方向Fourier係数[m,x]。
+    有限開口・CGH・伝搬誤差を最適化するものではない。
+    """
+    if (target_modes.shape != (len(kr), len(x)) or not len(positions)
+            or not 0 < ridge_relative <= 1):
+        raise ValueError("invalid transverse fit dimensions or regularization")
+    distance = np.abs(np.asarray(x)[:, None]-np.asarray(positions)[None, :])
+    coefficients = np.empty((len(kr), len(positions)), dtype=np.complex128)
+    for index, radial_k in enumerate(kr):
+        basis = j0(radial_k*distance)
+        u, singular, vh = np.linalg.svd(basis, full_matrices=False)
+        penalty = ridge_relative*singular[0]**2
+        coefficients[index] = vh.T @ (
+            singular/(singular**2+penalty) * (u.T @ target_modes[index]))
+    return coefficients
+
+
+def target_coefficients(config: Digit1Config, positions: np.ndarray,
+                        design: ModeDesign, period_m: float | None = None,
+                        sample_count: int | None = None) -> np.ndarray:
+    """両手法で共通の目標係数。周期拡張時は目標範囲外をゼロとする。
+
+    coupled: sqrt(I_target)を実振幅として指定し、各z-Fourierモードで
+    全Threadの複素振幅を同時に合わせる。入力場の位相は自由変数ではない。
+    """
+    period = config.design_length_m if period_m is None else period_m
+    count = config.coefficient_samples if sample_count is None else sample_count
+    if period < config.design_length_m or count < max(16, design.count):
+        raise ValueError("coefficient period/samples do not cover the design")
+    zm = (np.arange(count)+.5)*period/count
+    if config.coefficient_design == "independent_threads":
+        return fourier_coefficients(np.sqrt(digit_target(positions, zm, config)),
+                                    zm, design.m, period)
+    x_fit = np.linspace(-config.evaluation_x_half_width_m,
+                        config.evaluation_x_half_width_m, config.coefficient_fit_x_samples)
+    target_modes = fourier_coefficients(np.sqrt(digit_target(x_fit, zm, config)),
+                                       zm, design.m, period)
+    return fit_transverse_coefficients(x_fit, positions, design.kr_per_m,
+                                      target_modes, config.coefficient_ridge_relative)
 
 
 def initial_bessel_field(axis: np.ndarray, positions: np.ndarray,
@@ -333,34 +432,40 @@ def _write_json(path: Path, value: dict) -> None:
 def _save_images(out: Path, x: np.ndarray, z: np.ndarray, roi: np.ndarray,
                  sheets: dict, frames: dict, codes: np.ndarray | None,
                  field0: np.ndarray, positions: np.ndarray,
-                 target_threads: np.ndarray, isolated: np.ndarray) -> None:
+                 target_threads: np.ndarray, isolated: np.ndarray,
+                 digit_axes: str = "xz", target_digits: str = "1",
+                 coefficient_design: str = "independent_threads") -> None:
     extent = [x[roi][0] * 1000, x[roi][-1] * 1000, z[0] * 1000, z[-1] * 1000]
     shared_peak = max(float(sheets["target"].max()), float(sheets["analytic_infinite"].max()))
     titles = {
-        "target": "Digit 1 target",
+        "target": f"Digit {target_digits} target",
         "analytic_infinite": "Analytic Bessel sum (infinite aperture)",
         "finite_complex": "Finite complex field: angular spectrum",
         "cgh_replay": "8-bit amplitude-aware CGH + ideal 4f (gain corrected)",
     }
     fig, axes = plt.subplots(1, len(sheets), figsize=(5 * len(sheets), 6), constrained_layout=True)
     for ax, (name, intensity) in zip(np.atleast_1d(axes), sheets.items()):
-        img = ax.imshow(intensity[:, roi], origin="lower", extent=extent, aspect="auto",
+        display_values, extent, xlabel, ylabel = sheet_display(intensity, x, z, roi, digit_axes)
+        img = ax.imshow(display_values, origin="lower", extent=extent, aspect="auto",
                         cmap="gray", vmin=0, vmax=shared_peak)
-        ax.set(title=titles[name], xlabel="x [mm]", ylabel="z [mm]")
+        ax.set(title=titles[name], xlabel=xlabel, ylabel=ylabel)
         fig.colorbar(img, ax=ax, label="Intensity, common scale")
         single, single_ax = plt.subplots(figsize=(5, 6), constrained_layout=True)
-        single_ax.imshow(intensity[:, roi], origin="lower", extent=extent, aspect="auto",
+        single_ax.imshow(display_values, origin="lower", extent=extent, aspect="auto",
                          cmap="gray", vmin=0, vmax=shared_peak)
-        single_ax.set(title=titles[name], xlabel="x [mm]", ylabel="z [mm]")
-        single.savefig(out / f"sheet_{name}_xz.png", dpi=160)
+        single_ax.set(title=titles[name], xlabel=xlabel, ylabel=ylabel)
+        single.savefig(out / f"sheet_{name}_{digit_axes}.png", dpi=160)
         plt.close(single)
     fig.savefig(out / "digit1_sheet_comparison.png", dpi=160)
     plt.close(fig)
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 6), constrained_layout=True)
     thread_extent = [positions[0] * 1000, positions[-1] * 1000, z[0] * 1000, z[-1] * 1000]
+    isolated_title = ("Isolated FW threads (coupled fit: not individual targets)"
+                      if coefficient_design == "coupled_least_squares"
+                      else "Truncated FW series, isolated threads")
     for ax, intensity, title in zip(axes, (target_threads, isolated),
-                                    ("Target on each thread", "Truncated FW series, isolated threads")):
+                                    ("Target sampled at thread centres", isolated_title)):
         ax.imshow(intensity, origin="lower", extent=thread_extent, aspect="auto",
                   cmap="gray", vmin=0, vmax=max(float(target_threads.max()), float(isolated.max())))
         ax.set(title=title, xlabel="Thread x [mm]", ylabel="z [mm]")
@@ -405,10 +510,9 @@ def run_digit1(output_dir: str | Path, config: Digit1Config | None = None,
     x = (np.arange(config.grid_size) - config.grid_size // 2) * config.pixel_pitch_m
     z = np.linspace(0, config.design_length_m, config.z_samples)
     positions = (np.arange(config.thread_count) - (config.thread_count - 1) / 2) * config.thread_spacing_m
-    z_mid = (np.arange(config.coefficient_samples) + 0.5) * config.design_length_m / config.coefficient_samples
-    target_on_threads = digit_target(positions, z_mid, config)
-    coefficients = fourier_coefficients(np.sqrt(target_on_threads), z_mid,
-                                        design.m, config.design_length_m)
+    coefficient_start = time.perf_counter()
+    coefficients = target_coefficients(config, positions, design)
+    coefficient_seconds = time.perf_counter()-coefficient_start
     if not np.any(coefficients):
         raise ValueError("No thread intersects the digit; increase thread_count or reduce spacing")
     field = initial_bessel_field(x, positions, design.kr_per_m, coefficients)
@@ -477,7 +581,8 @@ def run_digit1(output_dir: str | Path, config: Digit1Config | None = None,
                            if config.include_cgh_replay else {}))
     if save_images:
         _save_images(out, x, z, roi, sheets, frames, codes, finite,
-                     positions, target_threads, isolated)
+                     positions, target_threads, isolated, config.digit_axes, config.target_digits,
+                     config.coefficient_design)
     summary = {
         "study": "theory_only_digit1_single_xz_sheet", "schema_version": THEORY_SCHEMA_VERSION,
         "config": asdict(config), "mode_count_per_thread": design.count,
@@ -485,6 +590,7 @@ def run_digit1(output_dir: str | Path, config: Digit1Config | None = None,
         "m": design.m.tolist(), "kr_per_m": design.kr_per_m.tolist(),
         "thread_x_m": positions.tolist(), "metrics": metrics, "encoding": encoding,
         "angular_sampling_at_sensor_depths": sampling, "padding_validation": padding,
+        "coefficient_design_seconds": coefficient_seconds,
         "propagation_seconds": propagation_seconds, "total_seconds": time.perf_counter() - begin,
         "notes": {
             "sheet": "Single y=0 x-z sheet; each camera frame is x-y, not the full digit",
@@ -492,25 +598,29 @@ def run_digit1(output_dir: str | Path, config: Digit1Config | None = None,
             "finite": "Scalar angular spectrum of a freshly generated finite-aperture field",
             "camera": "Ideal intensity readout; no shot noise, pixel integration, LUT calibration or aberrations",
             "coordinates": "z=0 is the virtual 1:1 4f output plane; pitch is numerical/output-plane sampling",
+            "sheet_array_order": "[z,x]; digit_axes changes target orientation and plot axes, not propagation direction",
             "coordinate_origin": "An actual y=0 pixel at N//2; differs by half a pixel from Stage A; match dictionary coordinates before a later compressed comparison",
             "SLM": f"CGH is a virtual {config.grid_size}-square phase mask; physical 1920x1200 / 8um / 1:4 mapping is not applied",
             "gain": "CGH replay comparisons divide the known constant encoding coupling only; raw intensities are also saved",
             "normalization": "All fields share the same initial reference scale; no independent image peak normalization",
             "padding": "Transfer phase sampling is guarded; finite padding convergence requires its own check",
             "compression": "No Tucker compression, saved cores, or FFT-shift operator used",
+            "coefficient_design": "Independent thread Fourier profiles or a regularized coherent transverse fit, as recorded in config. Coupled fitting does not optimize finite-aperture propagation or CGH encoding.",
         }, "sources": SOURCES,
     }
     _write_json(out / "summary.json", summary)
     _write_json(out / "manifest.json", {"files": sorted(
         {"manifest.json"} | {str(p.relative_to(out)).replace("\\", "/")
                               for p in out.rglob("*") if p.is_file()})})
-    print(f"Saved theory-only digit 1 to: {out.resolve()}", flush=True)
+    print(f"Saved theory-only digit {config.target_digits} to: {out.resolve()}", flush=True)
     return summary
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", default="lsh_digit1_theory_outputs_v1")
+    parser.add_argument("--output-dir")
+    parser.add_argument("--digit-axes", choices=("xz", "zx"), default="xz")
+    parser.add_argument("--target-digits", default="1", help="For example: 1 or 123")
     parser.add_argument("--z-samples", type=int, default=101)
     parser.add_argument("--padding", type=int, default=2)
     parser.add_argument("--check-padding", action="store_true")
@@ -518,8 +628,12 @@ def main() -> None:
     parser.add_argument("--no-images", action="store_true")
     args = parser.parse_args()
     config = Digit1Config(z_samples=args.z_samples, padding_factor=args.padding,
-                          check_padding=args.check_padding, include_cgh_replay=not args.no_cgh)
-    run_digit1(args.output_dir, config, save_images=not args.no_images)
+                          check_padding=args.check_padding, include_cgh_replay=not args.no_cgh,
+                          digit_axes=args.digit_axes, target_digits=args.target_digits)
+    default_out = "lsh_digit1_theory_outputs_v1" if args.digit_axes == "xz" else "lsh_digit1_theory_zx_outputs_v1"
+    if args.target_digits != "1":
+        default_out = f"lsh_digits{args.target_digits}_theory_{args.digit_axes}_outputs_v1"
+    run_digit1(args.output_dir or default_out, config, save_images=not args.no_images)
 
 
 if __name__ == "__main__":

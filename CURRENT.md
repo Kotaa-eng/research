@@ -1,4 +1,16 @@
+数字123はランク512で直接法のCGH再生強度との相対L2誤差0.164%、SSIM 0.999984を確認した。次は [lsh_digits123_rank_refinement.ipynb](lsh_digits123_rank_refinement.ipynb) で384・400〜500（10刻み）・512を比較し、合格した最小候補のCGH・伝搬まで検証する。既存の親基底と光学条件を固定する。手順・保存先は [LSH数字123_ランク細分化.md](LSH数字123_ランク細分化.md)。新しい計算はユーザー側で実行する。
+
+低ランクの失敗も含めて再生像を見る入口は [lsh_digits123_low_rank.ipynb](lsh_digits123_low_rank.ipynb)。50・100・200・300・450・512を比較する。既存の200以上のCGH・伝搬結果を再利用し、追加分だけ伝搬する。場生成時間は全候補で測り直す。保存先は [LSH数字123_低ランク診断.md](LSH数字123_低ランク診断.md)。
+
+最初のランク検証は [lsh_digits123_rank_audit.ipynb](lsh_digits123_rank_audit.ipynb)。広帯域123のランク100が圧縮で失敗した診断は [LSH数字123_圧縮失敗の診断.md](LSH数字123_圧縮失敗の診断.md)。
+
+数字123の画質改善は [lsh_digits123_improved.ipynb](lsh_digits123_improved.ipynb)。kr帯域・Thread間隔・干渉を考慮した係数設計の5条件を比較し、選択候補へ同じ提案法を適用する。説明は [LSH数字123_画質改善.md](LSH数字123_画質改善.md)。計算はユーザー側で実行する。
+
+数字「123」を1枚のシートで比較する入口は [lsh_digits123.ipynb](lsh_digits123.ipynb)。横z・縦x、初期設定50 cm・ランク100。目標から係数を再設計し、直接法と提案法のCGH再生・画質・時間を比較する。説明は [LSH数字123_比較.md](LSH数字123_比較.md)。
+
 # 現在の主経路：Stage A アルゴリズム整合性検証
+
+数字1を横z・縦xで正立させる新しい目標の検証は [lsh_digit1_zx.ipynb](lsh_digit1_zx.ipynb)。同じy=0平面・z伝搬のまま文字のx/z対応を交換し、係数とCGHを再計算する。旧目標の結果は上書きしない。詳細は [LSH数字1_zx方向比較.md](LSH数字1_zx方向比較.md)。
 
 SLMまでの時間は [lsh_digit1_slm_timing.ipynb](lsh_digit1_slm_timing.ipynb)。マスク生成と検証用4f再生を分離し、入力更新→フレーム準備→同期表示関数の完了を計測する。未接続なら表示時間は未計測。実機SDK接続は型番・表示方式の確認後に行う。詳細は [LSH数字1_SLM表示時間.md](LSH数字1_SLM表示時間.md)。
 

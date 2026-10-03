@@ -26,6 +26,7 @@ from stage_a_validation import (
 )
 
 SCHEMA_VERSION = 1
+ONLINE_IMPLEMENTATION_VERSION = "contiguous_core_matvec_v2"
 
 
 def config_from_theory_results(directory: str | Path) -> theory.Digit1Config:
@@ -72,9 +73,7 @@ def design_coefficients(config: theory.Digit1Config, positions: np.ndarray,
     count = config.coefficient_samples*mode_spacing_factor
     if count < design.count:
         raise ValueError("coefficient quadrature samples must be >= mode count")
-    zm = (np.arange(count)+.5)*period/count
-    weights = theory.fourier_coefficients(np.sqrt(theory.digit_target(positions, zm, config)),
-                                         zm, design.m, period)
+    weights = theory.target_coefficients(config, positions, design, period, count)
     return design, weights
 
 
@@ -236,6 +235,22 @@ def load_or_build_library(path: str | Path, config: theory.Digit1Config,
                      "x_basis_parity": _basis_parity(ux)}
 
 
+def truncate_library(library: dict, rank: int) -> dict:
+    """同じ基底の先頭列を使い、オンライン前に配列を一度だけ詰める。
+
+    親コア[:, :rank, :rank]をそのまま渡すと行間隔は親ランクのまま。
+    Threadごとの縮約で再配置を繰り返さないよう、値・dtypeを変えず
+    C連続配列にする。これは辞書準備であり場生成の計測外。
+    """
+    parent_rank = library["cores"].shape[1]
+    if not isinstance(rank, (int, np.integer)) or not 1 <= rank <= parent_rank:
+        raise ValueError("rank must fit inside the parent library")
+    return {**library,
+            **{key: np.ascontiguousarray(library[key][:, :rank])
+               for key in ("uy", "ux", "vy", "vx")},
+            "cores": np.ascontiguousarray(library["cores"][:, :rank, :rank])}
+
+
 def proposed_field(library: dict, coefficients: np.ndarray,
                    positions: np.ndarray, pitch: float) -> tuple[np.ndarray, dict, np.ndarray]:
     """オンライン: Thread別重み付きコア→射影シフト→全コア加算→1回復元。
@@ -248,14 +263,21 @@ def proposed_field(library: dict, coefficients: np.ndarray,
     if coefficients.shape != (len(cores), len(positions)):
         raise ValueError("Coefficient and library mode counts differ")
     active = np.flatnonzero(np.any(coefficients != 0, axis=0))
-    timings = {"thread_core_weighting_seconds": 0.0,
+    timings = {"core_matrix_setup_seconds": 0.0,
+               "thread_core_weighting_seconds": 0.0,
                "shift_operator_seconds": 0.0, "shifted_core_sum_seconds": 0.0}
     tic_total = time.perf_counter()
     kx = 2 * np.pi * np.fft.fftfreq(ux.shape[0], d=pitch)
     total = np.zeros(cores.shape[1:], dtype=np.complex128)
+    tic = time.perf_counter()
+    # 連続コアならコピーなしのビュー。未準備の入力でも詰め直しは1回だけ。
+    # sum_m A[m,q] C[m,:,:] は A[:,q] @ C.reshape(M,rank*rank) と同じ。
+    # 複素係数の共役は取らない。Threadごとの巨大なreshapeコピーを避ける。
+    core_matrix = cores.reshape(len(cores), -1)
+    timings["core_matrix_setup_seconds"] = time.perf_counter() - tic
     for q in active:
         tic = time.perf_counter()
-        weighted = np.tensordot(coefficients[:, q], cores, axes=(0, 0))
+        weighted = (coefficients[:, q] @ core_matrix).reshape(total.shape)
         timings["thread_core_weighting_seconds"] += time.perf_counter() - tic
         tic = time.perf_counter()
         ax = _x_shift_core_operator(ux, np.exp(-1j * kx * positions[q]))
@@ -308,7 +330,8 @@ def shift_diagnostics(library: dict, coefficients: np.ndarray, positions: np.nda
 
 
 def _plot_comparison(out: Path, x: np.ndarray, z: np.ndarray, roi: np.ndarray,
-                     images: dict, filename: str, xy: bool = False) -> None:
+                     images: dict, filename: str, xy: bool = False,
+                     digit_axes: str = "xz") -> None:
     # 全ケース同一スケール。差分だけ専用スケールを明示する。
     names = list(images)
     a, b = images[names[0]], images[names[1]]
@@ -319,15 +342,36 @@ def _plot_comparison(out: Path, x: np.ndarray, z: np.ndarray, roi: np.ndarray,
     for ax, data, title, vmax in zip(axes, (a, b, difference),
                                    (*names, "Absolute intensity difference (own scale)"),
                                    (max(a.max(), b.max()), max(a.max(), b.max()), difference.max())):
-        im = ax.imshow(data if xy else data[:, roi], origin="lower", extent=extent,
+        if xy:
+            values, xlabel, ylabel = data, "x [mm]", "y [mm]"
+        else:
+            values, extent, xlabel, ylabel = theory.sheet_display(data, x, z, roi, digit_axes)
+        im = ax.imshow(values, origin="lower", extent=extent,
                        aspect="equal" if xy else "auto", cmap="gray", vmin=0,
                        vmax=max(float(vmax), np.finfo(float).tiny))
-        ax.set(title=title, xlabel="x [mm]", ylabel="y [mm]" if xy else "z [mm]")
+        ax.set(title=title, xlabel=xlabel, ylabel=ylabel)
         if xy:
             ax.axhline(0, color="red", linewidth=.5)
         fig.colorbar(im, ax=ax)
     fig.savefig(out / filename, dpi=160)
     plt.close(fig)
+
+
+def refresh_sheet_comparison_labels(output_dir: str | Path) -> None:
+    """保存済み強度から比較図の見出しだけ直す。場生成・CGH再生・伝搬はしない。"""
+    out = Path(output_dir)
+    summary = json.loads((out/"summary.json").read_text(encoding="utf-8"))
+    if summary.get("study") != "digit1_direct_vs_projected_shared_core":
+        raise ValueError("Not a digit1 direct/proposed comparison folder")
+    config = theory.Digit1Config(**summary["config"])
+    with np.load(out/"comparison_data.npz", allow_pickle=False) as saved:
+        x, z = saved["x_m"], saved["z_m"]
+        roi = np.abs(x) <= config.evaluation_x_half_width_m
+        for kind in ("complex", "cgh"):
+            label = "CGH replay intensity" if kind == "cgh" else "Complex-field propagation intensity"
+            _plot_comparison(out, x, z, roi,
+                {"Direct "+label: saved["direct_"+kind], "Proposed "+label: saved["proposed_"+kind]},
+                f"{kind}_sheet_comparison.png", digit_axes=config.digit_axes)
 
 
 def _save_initial_comparison(out: Path, direct: np.ndarray, proposed: np.ndarray,
@@ -368,7 +412,9 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
                    seed: int = 42, save_images: bool = True,
                    run_shift_diagnostics: bool = True,
                    mode_spacing_factor: int = 1,
-                   basis_strategy: str = "shift_aware") -> dict:
+                   basis_strategy: str = "shift_aware",
+                   max_initial_complex_error: float | None = None,
+                   library_parent_rank: int | None = None) -> dict:
     config = config or theory.Digit1Config()
     if not config.include_cgh_replay:
         raise ValueError("This comparison needs include_cgh_replay=True")
@@ -377,6 +423,12 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
         raise ValueError("coefficient quadrature samples must be >= mode count")
     if not 1 <= rank <= config.grid_size:
         raise ValueError("rank must be between 1 and grid_size")
+    parent_rank = rank if library_parent_rank is None else library_parent_rank
+    if not isinstance(parent_rank, (int, np.integer)) or not rank <= parent_rank <= config.grid_size:
+        raise ValueError("library_parent_rank must be >=rank and <=grid_size")
+    if (max_initial_complex_error is not None
+            and not 0 < max_initial_complex_error <= 1):
+        raise ValueError("max_initial_complex_error must be inside (0,1]")
     out = Path(output_dir)
     if out.exists() and not out.is_dir():
         raise NotADirectoryError(str(out))
@@ -385,9 +437,18 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
     out.mkdir(parents=True, exist_ok=True)
     suffix = "" if mode_spacing_factor == 1 else f"_spacing{mode_spacing_factor}"
     suffix += "_shiftaware" if basis_strategy == "shift_aware" else ""
-    library_path = Path(library_path or out.parent / f"lsh_digit1_library_rank{rank}{suffix}.npz")
-    library, offline = load_or_build_library(library_path, config, rank, seed,
+    library_path = Path(library_path or out.parent / f"lsh_digit1_library_rank{parent_rank}{suffix}.npz")
+    library, offline = load_or_build_library(library_path, config, parent_rank, seed,
                                              mode_spacing_factor, basis_strategy)
+    tic = time.perf_counter()
+    # 親ランクそのものも同じ配列準備を通し、低ランクだけ不利にしない。
+    library = truncate_library(library, rank)
+    offline = {**offline, "online_library_packing_seconds": time.perf_counter()-tic,
+               "online_array_layout": "C contiguous cores and factors",
+               "online_implementation": ONLINE_IMPLEMENTATION_VERSION}
+    if parent_rank != rank:
+        offline = {**offline, "basis_parent_rank": parent_rank, "used_rank": rank,
+                   "basis_selection": "first columns of the parent shared basis; not separately trained at used_rank"}
     if save_images:
         factors = out / "factors"
         factors.mkdir()
@@ -397,7 +458,9 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
     x = (np.arange(n) - n//2) * config.pixel_pitch_m
     z = np.linspace(0, config.design_length_m, config.z_samples)
     positions = (np.arange(config.thread_count) - (config.thread_count-1)/2) * config.thread_spacing_m
+    tic = time.perf_counter()
     _, weights = design_coefficients(config, positions, mode_spacing_factor)
+    coefficient_design_seconds = time.perf_counter()-tic
     if not np.any(weights):
         raise ValueError("No thread intersects the target")
     illumination = (np.hypot(x[:, None], x[None, :]) <= config.aperture_radius_m).astype(float)
@@ -412,6 +475,18 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
     scale = float(np.max(np.abs(direct)[illumination > 0]))
     if scale <= 0:
         raise ValueError("Zero reference field")
+    initial_error = _relative_l2(direct*illumination, proposed*illumination)
+    precheck = {"complex_relative_l2": initial_error,
+                "max_initial_complex_error": max_initial_complex_error,
+                "status": "not_enforced" if max_initial_complex_error is None
+                else ("passed" if initial_error <= max_initial_complex_error else "failed"),
+                "scope": "finite-aperture initial complex field, before CGH and propagation"}
+    theory._write_json(out/"compression_precheck.json", precheck)
+    if precheck["status"] == "failed":
+        raise ValueError(
+            f"Compression precheck failed: field error={initial_error:.2%}, "
+            f"limit={max_initial_complex_error:.2%}. CGH/propagation skipped. "
+            "Use lsh_digits123_rank_audit.ipynb to check the shared basis first.")
     diagnostics = {"status": "not_run"}
     if run_shift_diagnostics:
         diagnostics, exact_periodic = shift_diagnostics(
@@ -490,16 +565,19 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
             Image.fromarray(code).save(out/f"{name}_cgh_8bit.png")
         _save_initial_comparison(out, fields["direct_complex"], fields["proposed_complex"], codes)
         for kind in ("complex", "cgh"):
-            _plot_comparison(out, x, z, roi, {"Direct "+kind: sheets["direct_"+kind],
-                             "Proposed "+kind: sheets["proposed_"+kind]}, f"{kind}_sheet_comparison.png")
+            label = "CGH replay intensity" if kind == "cgh" else "Complex-field propagation intensity"
+            _plot_comparison(out, x, z, roi, {"Direct "+label: sheets["direct_"+kind],
+                             "Proposed "+label: sheets["proposed_"+kind]}, f"{kind}_sheet_comparison.png",
+                             digit_axes=config.digit_axes)
         # 目標と両手法を並べて「直接法に一致」と「目標に一致」を区別する。
         fig, axes = plt.subplots(1, 3, figsize=(15, 6), constrained_layout=True)
         peak = max(float(target.max()), float(sheets["direct_cgh"].max()), float(sheets["proposed_cgh"].max()))
         for ax, image, title in zip(axes, (target, sheets["direct_cgh"], sheets["proposed_cgh"]),
-                                   ("Digit 1 target", "Direct CGH replay", "Proposed CGH replay")):
-            im = ax.imshow(image[:, roi], origin="lower", aspect="auto", cmap="gray", vmin=0, vmax=peak,
-                           extent=[x[roi][0]*1000, x[roi][-1]*1000, z[0]*1000, z[-1]*1000])
-            ax.set(title=title, xlabel="x [mm]", ylabel="z [mm]")
+                                   (f"Digit {config.target_digits} target", "Direct CGH replay intensity", "Proposed CGH replay intensity")):
+            values, extent, xlabel, ylabel = theory.sheet_display(image, x, z, roi, config.digit_axes)
+            im = ax.imshow(values, origin="lower", aspect="auto", cmap="gray", vmin=0, vmax=peak,
+                           extent=extent)
+            ax.set(title=title, xlabel=xlabel, ylabel=ylabel)
             fig.colorbar(im, ax=ax, label="Intensity, common scale")
         fig.savefig(out/"target_direct_proposed.png", dpi=160)
         plt.close(fig)
@@ -508,10 +586,10 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
                    for name in ("direct_cgh", "proposed_cgh")}
         limit = max(max(float(np.max(np.abs(v[:, roi]))), 1e-15) for v in antisym.values())
         for ax, (name, image) in zip(axes, antisym.items()):
-            im = ax.imshow(image[:, roi], origin="lower", aspect="auto", cmap="coolwarm",
-                           vmin=-limit, vmax=limit,
-                           extent=[x[roi][0]*1000, x[roi][-1]*1000, z[0]*1000, z[-1]*1000])
-            ax.set(title=name+": I(x,z)-I(-x,z)", xlabel="x [mm]", ylabel="z [mm]")
+            values, extent, xlabel, ylabel = theory.sheet_display(image, x, z, roi, config.digit_axes)
+            im = ax.imshow(values, origin="lower", aspect="auto", cmap="coolwarm",
+                           vmin=-limit, vmax=limit, extent=extent)
+            ax.set(title=name+": I(x,z)-I(-x,z)", xlabel=xlabel, ylabel=ylabel)
             fig.colorbar(im, ax=ax, label="Antisymmetric intensity, common scale")
         fig.savefig(out/"asymmetry_comparison.png", dpi=160)
         plt.close(fig)
@@ -519,16 +597,19 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
         sensor.mkdir()
         for i in sorted(snapshots):
             for kind in ("complex", "cgh"):
+                label = "CGH replay intensity" if kind == "cgh" else "Complex-field propagation intensity"
                 _plot_comparison(sensor, x, z, roi,
-                    {f"Direct {kind}, z={z[i]*1000:.1f}mm": frames["direct_"+kind][i],
-                     f"Proposed {kind}, z={z[i]*1000:.1f}mm": frames["proposed_"+kind][i]},
+                    {f"Direct {label}\nz={z[i]*1000:.1f} mm": frames["direct_"+kind][i],
+                     f"Proposed {label}\nz={z[i]*1000:.1f} mm": frames["proposed_"+kind][i]},
                     f"{kind}_z{z[i]*1000:06.1f}mm.png", xy=True)
     summary = {
         "study": "digit1_direct_vs_projected_shared_core", "schema_version": SCHEMA_VERSION,
         "config": asdict(config), "rank": rank, "seed": seed,
+        "library_parent_rank": parent_rank, "compression_precheck": precheck,
         "mode_spacing_factor": mode_spacing_factor,
         "basis_strategy": basis_strategy,
         "coefficient_period_m": config.design_length_m*mode_spacing_factor,
+        "sheet_array_order": "[z,x] for every orientation; display follows config.digit_axes",
         "kz_spacing_per_m": 2*np.pi/(config.design_length_m*mode_spacing_factor),
         "m": design.m.tolist(), "kr_per_m": design.kr_per_m.tolist(),
         "library_path": str(library_path.resolve()), "offline": offline,
@@ -538,7 +619,8 @@ def run_comparison(output_dir: str | Path, config: theory.Digit1Config | None = 
         "reference_scale": scale, "encoding": encodings, "metrics": metrics,
         "shift_diagnostics": diagnostics, "symmetry_diagnostics": symmetry,
         "propagation_sampling": sampling, "padding_check": padding,
-        "timings_seconds": {"direct_field_generation": direct_seconds,
+        "timings_seconds": {"shared_target_coefficient_design": coefficient_design_seconds,
+            "direct_field_generation": direct_seconds,
             "proposed_field_generation": proposed_times,
             "cgh_encode_and_ideal4f_replay": cgh_times, "all_four_propagation": propagation_seconds},
         "timing_scope": "Single runs, not a repeated benchmark. Field timers exclude offline, shared weights, aperture, normalization, diagnostics, saving and propagation. CGH timer includes ideal4f replay, not just mask generation.",
@@ -558,15 +640,19 @@ def main() -> None:
     parser.add_argument("--mode-spacing-factor", type=int, default=1,
                         help="1=original kz spacing; 2=half; 4=quarter; same kr endpoints")
     parser.add_argument("--basis-strategy", choices=("center_only", "shift_aware"), default="shift_aware")
+    parser.add_argument("--digit-axes", choices=("xz", "zx"), help="Override target orientation; otherwise keep loaded config")
     parser.add_argument("--library-path")
     parser.add_argument("--theory-results", help="Reuse the saved theory configuration only")
     parser.add_argument("--no-images", action="store_true")
     parser.add_argument("--no-shift-diagnostics", action="store_true")
     args = parser.parse_args()
     config = config_from_theory_results(args.theory_results) if args.theory_results else theory.Digit1Config()
+    if args.digit_axes is not None:
+        config = replace(config, digit_axes=args.digit_axes)
     suffix = "" if args.mode_spacing_factor == 1 else f"_spacing{args.mode_spacing_factor}"
     suffix += "_shiftaware_v2" if args.basis_strategy == "shift_aware" else "_v1"
-    output_dir = args.output_dir or f"lsh_digit1_proposed_rank{args.rank}{suffix}"
+    axis_suffix = "" if config.digit_axes == "xz" else "_zx"
+    output_dir = args.output_dir or f"lsh_digit1_proposed{axis_suffix}_rank{args.rank}{suffix}"
     summary = run_comparison(output_dir, config, args.rank, args.library_path,
                              save_images=not args.no_images,
                              run_shift_diagnostics=not args.no_shift_diagnostics,

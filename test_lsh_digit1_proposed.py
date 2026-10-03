@@ -14,7 +14,7 @@ import numpy as np
 
 from lsh_digit1_proposed import (
     design_coefficients, library_spec, load_or_build_library,
-    mode_design_for_spacing, proposed_field,
+    mode_design_for_spacing, proposed_field, truncate_library,
     _shift_aware_x_basis,
 )
 from lsh_digit1_theory import Digit1Config
@@ -23,6 +23,15 @@ from stage_a_validation import _spatial_factors
 
 
 class Digit1ProposedTests(unittest.TestCase):
+    def test_zx_reuses_dictionary_but_recomputes_thread_coefficients(self):
+        config = Digit1Config()
+        zx = replace(config, digit_axes="zx")
+        self.assertEqual(library_spec(config, 100, 42), library_spec(zx, 100, 42))
+        positions = np.array([-.225e-3, 0, .225e-3])
+        _, old = design_coefficients(config, positions)
+        _, new = design_coefficients(zx, positions)
+        self.assertGreater(np.linalg.norm(new-old)/np.linalg.norm(old), .1)
+
     def test_shift_aware_basis_keeps_odd_translation_component(self):
         n, pitch = 32, 4e-6
         basis = np.zeros((n, 3))
@@ -89,7 +98,15 @@ class Digit1ProposedTests(unittest.TestCase):
 
     def test_reduced_rank_matches_projection_of_full_shifted_spectrum(self):
         n, pitch = 16, 4e-6
-        library = self.library(n, 4)
+        parent = self.library(n, 8)
+        library = truncate_library(parent, 4)
+        # 実際の親基底からの切り出しでも、配列配置以外の値を変えない。
+        self.assertFalse(parent["cores"][:, :4, :4].flags.c_contiguous)
+        for key in ("uy", "ux", "vy", "vx", "cores"):
+            self.assertTrue(library[key].flags.c_contiguous)
+            expected_slice = parent[key][:, :4, :4] if key == "cores" else parent[key][:, :4]
+            np.testing.assert_array_equal(library[key], expected_slice)
+            self.assertEqual(library[key].dtype, parent[key].dtype)
         weights = np.array([[1, .2j], [.4j, -.3], [.8, .6+.1j]])
         positions = np.array([-1.3, 2.7])*pitch
         kx = 2*np.pi*np.fft.fftfreq(n, d=pitch)
