@@ -1,0 +1,184 @@
+{
+  "study": "legacy_coaxial_restore_placed_factors_vs_projected_core_shift",
+  "implementation_version": 2,
+  "rank": 80,
+  "grid_size": 2048,
+  "target_digits": "123",
+  "modes_per_thread": 43,
+  "thread_count": 41,
+  "active_thread_count": 41,
+  "nonzero_beam_terms": 1763,
+  "thread_spacing_m": 3.75e-05,
+  "spot_radius_m": 3e-05,
+  "repeats": 3,
+  "warmups": 0,
+  "reference_dir": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_digits123_rank_verified_outputs_rank512_parent512_v1",
+  "library_path": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_digits123_design_library_rank512_51567adca08caaff.npz",
+  "shared_library_for_both_methods": true,
+  "dictionary_load_and_packing_seconds": 1.049424100012402,
+  "coordinate_preparation_seconds": {
+    "legacy_placed_factors": 0.2552692000026582,
+    "proposed_shift_operators": 0.13799869999638759
+  },
+  "coordinate_cache_mib": {
+    "legacy_placed_factors": 102.5,
+    "proposed_shift_operators": 4.00390625
+  },
+  "statistics_seconds": {
+    "legacy": {
+      "core_weighting_seconds": 0.01424270001007244,
+      "reconstruction_seconds": 1.0474017000669846,
+      "shift_seconds": 0.0,
+      "summation_seconds": 0.32273599997279234,
+      "field_generation_seconds": 1.3849125999986427
+    },
+    "proposed": {
+      "core_weighting_seconds": 0.007186499977251515,
+      "reconstruction_seconds": 0.020966899988707155,
+      "shift_seconds": 0.0,
+      "summation_seconds": 0.006133200004114769,
+      "field_generation_seconds": 0.03454290000081528
+    },
+    "proposed_online": {
+      "core_weighting_seconds": 0.009052099980181083,
+      "reconstruction_seconds": 0.019970899986219592,
+      "shift_seconds": 0.11600480000197422,
+      "summation_seconds": 0.00928160002513323,
+      "field_generation_seconds": 0.1527258999994956
+    }
+  },
+  "samples_seconds": {
+    "legacy": [
+      {
+        "core_weighting_seconds": 0.014958199972170405,
+        "reconstruction_seconds": 1.0655396000220207,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.34164280000550207,
+        "field_generation_seconds": 1.4227816000056919
+      },
+      {
+        "core_weighting_seconds": 0.01424270001007244,
+        "reconstruction_seconds": 1.0474017000669846,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.32273599997279234,
+        "field_generation_seconds": 1.3849125999986427
+      },
+      {
+        "core_weighting_seconds": 0.013724000018555671,
+        "reconstruction_seconds": 0.9849427999870386,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.3149259000783786,
+        "field_generation_seconds": 1.3140991000109352
+      }
+    ],
+    "proposed": [
+      {
+        "core_weighting_seconds": 0.007507700007408857,
+        "reconstruction_seconds": 0.023824499992770143,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.006133200004114769,
+        "field_generation_seconds": 0.037709099997300655
+      },
+      {
+        "core_weighting_seconds": 0.007186499977251515,
+        "reconstruction_seconds": 0.020966899988707155,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.00614569999743253,
+        "field_generation_seconds": 0.03454290000081528
+      },
+      {
+        "core_weighting_seconds": 0.0066632000234676525,
+        "reconstruction_seconds": 0.018490000002202578,
+        "shift_seconds": 0.0,
+        "summation_seconds": 0.005688700097380206,
+        "field_generation_seconds": 0.03109319999930449
+      }
+    ],
+    "proposed_online": [
+      {
+        "core_weighting_seconds": 0.00973410002188757,
+        "reconstruction_seconds": 0.019970899986219592,
+        "shift_seconds": 0.12207299994770437,
+        "summation_seconds": 0.010082299893838353,
+        "field_generation_seconds": 0.16226219999953173
+      },
+      {
+        "core_weighting_seconds": 0.008953599972301163,
+        "reconstruction_seconds": 0.02047659999516327,
+        "shift_seconds": 0.11303359999146778,
+        "summation_seconds": 0.00928160002513323,
+        "field_generation_seconds": 0.15220700000645593
+      },
+      {
+        "core_weighting_seconds": 0.009052099980181083,
+        "reconstruction_seconds": 0.018390900004305877,
+        "shift_seconds": 0.11600480000197422,
+        "summation_seconds": 0.008883600050467066,
+        "field_generation_seconds": 0.1527258999994956
+      }
+    ]
+  },
+  "stage_definitions": "shift_seconds is online coordinate/factor or operator preparation; zero for both prepared methods. Proposed summation includes core translation matrix multiplication and addition. Legacy summation is full-image addition.",
+  "speedup_legacy_over_proposed": 40.09253999999873,
+  "speedup_legacy_over_proposed_online": 9.06796162277136,
+  "complex_relative_l2_vs_saved_direct": {
+    "proposed_online": 0.9681454502380433,
+    "legacy": 0.968081244354156,
+    "proposed": 0.9681454502380433
+  },
+  "complex_relative_l2_proposed_vs_legacy": 0.04768172121170371,
+  "image_metrics": {
+    "legacy_vs_direct": {
+      "amplitude": {
+        "ssim": 0.7749251639971162,
+        "psnr_db": 24.374261104218608,
+        "snr_db": 1.576342348392866
+      },
+      "intensity": {
+        "ssim": 0.9166751367967612,
+        "psnr_db": 31.581979121396557,
+        "snr_db": 0.2283314776366006
+      }
+    },
+    "proposed_vs_direct": {
+      "amplitude": {
+        "ssim": 0.7719349261559034,
+        "psnr_db": 24.37138627692352,
+        "snr_db": 1.5734675210977738
+      },
+      "intensity": {
+        "ssim": 0.9166561974159595,
+        "psnr_db": 31.581896752415204,
+        "snr_db": 0.22824910865524928
+      }
+    },
+    "proposed_vs_legacy": {
+      "amplitude": {
+        "ssim": 0.988774194324943,
+        "psnr_db": 50.86217601342333,
+        "snr_db": 29.645663067806577
+      },
+      "intensity": {
+        "ssim": 0.9998309077506882,
+        "psnr_db": 71.47565345027022,
+        "snr_db": 43.40672310628614
+      }
+    },
+    "proposed_online_vs_direct": {
+      "amplitude": {
+        "ssim": 0.7719349261559034,
+        "psnr_db": 24.37138627692352,
+        "snr_db": 1.5734675210977738
+      },
+      "intensity": {
+        "ssim": 0.9166561974159595,
+        "psnr_db": 31.581896752415204,
+        "snr_db": 0.22824910865524928
+      }
+    }
+  },
+  "image_metrics_scope": "Full-grid pre-CGH amplitude/intensity; shared scale, reference peak PSNR, 7x7 SSIM. Not CGH replay or target-digit quality.",
+  "dictionary_array_mib": 11.69921875,
+  "scope": "Field generation only. Fixed coordinates: legacy spatial factors and proposed Ax operators prepared once outside online timers. Legacy reconstructs each placed Thread and sums full images; no online spatial shift. proposed_online separately builds Ax online. Common saved rank-r representation; not the original spatial Tucker offline fit. Legacy coordinate preparation uses linear interpolation, proposed Fourier projection; inspect errors. No CGH/propagation.",
+  "quality_note": "Rank80 is a timing candidate, not a validated acceptable rank for this 123 input. Inspect reported field errors; speed alone does not establish reconstruction quality."
+}

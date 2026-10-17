@@ -1,0 +1,960 @@
+{
+  "settings": {
+    "schema_version": 1,
+    "reference_dir": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_digits123_rank_verified_outputs_rank512_parent512_v1",
+    "config": {
+      "wavelength_m": 5.32e-07,
+      "grid_size": 2048,
+      "pixel_pitch_m": 7e-06,
+      "spot_radius_m": 3e-05,
+      "design_length_m": 0.5,
+      "thread_count": 41,
+      "thread_spacing_m": 3.75e-05,
+      "digit_width_m": 0.0012,
+      "digit_z_start_m": 0.075,
+      "digit_z_end_m": 0.425,
+      "evaluation_x_half_width_m": 0.0009,
+      "coefficient_samples": 4096,
+      "z_samples": 101,
+      "aperture_radius_m": 0.0058000000000000005,
+      "illumination_waist_m": null,
+      "padding_factor": 2,
+      "angular_bandlimit": true,
+      "include_cgh_replay": true,
+      "carrier_period_pixels": 4,
+      "encoding_coupling": 0.58,
+      "filter_radius_factor": 1.2,
+      "sensor_z_m": [
+        0.0,
+        0.1,
+        0.25,
+        0.4,
+        0.5
+      ],
+      "check_padding": false,
+      "padding_check_factor": 3,
+      "digit_axes": "zx",
+      "target_digits": "123",
+      "digit_gap_fraction": 0.18,
+      "coefficient_design": "coupled_least_squares",
+      "coefficient_fit_x_samples": 401,
+      "coefficient_ridge_relative": 0.001
+    },
+    "stack": {
+      "rank": 450,
+      "parent_rank": 512,
+      "sheet_count": 5,
+      "sheet_spacing_m": 7.5e-05,
+      "sheet_phase_step_rad": 0.0,
+      "z_samples": 101,
+      "padding_factor": 2,
+      "evaluation_y_half_width_m": 0.0005,
+      "training_y_shifts_m": null,
+      "timing_repeats": 1,
+      "timing_warmups": 0,
+      "max_initial_complex_error": 0.01,
+      "max_initial_intensity_error": 0.03,
+      "scatter_threshold_fraction": 0.2,
+      "scatter_max_points": 12000
+    },
+    "coefficient_source": "saved single-sheet coefficients, copied to all y sheets; no 3D refit"
+  },
+  "offline": {
+    "status": "built",
+    "build_and_save_seconds": 35.95641569999998,
+    "spec": {
+      "schema_version": 1,
+      "parent_spec": {
+        "schema_version": 1,
+        "rank": 512,
+        "seed": 42,
+        "grid_size": 2048,
+        "pixel_pitch_m": 7e-06,
+        "wavelength_m": 5.32e-07,
+        "spot_radius_m": 3e-05,
+        "design_length_m": 0.5,
+        "coordinates": "(arange(N)-N//2)*pitch; ordinary unshifted fft2",
+        "dictionary_field": "unwindowed J0; aperture applied after thread summation",
+        "oversampling": 16,
+        "power_iterations": 2,
+        "basis_strategy": "shift_aware",
+        "training_x_shifts_m": [
+          -0.0007499999999999999,
+          -0.0007124999999999999,
+          -0.0006749999999999999,
+          -0.0006374999999999999,
+          -0.0006,
+          -0.0005625,
+          -0.000525,
+          -0.0004875,
+          -0.00045,
+          -0.00041249999999999994,
+          -0.00037499999999999995,
+          -0.00033749999999999996,
+          -0.0003,
+          -0.0002625,
+          -0.000225,
+          -0.00018749999999999998,
+          -0.00015,
+          -0.0001125,
+          -7.5e-05,
+          -3.75e-05,
+          0.0,
+          3.75e-05,
+          7.5e-05,
+          0.0001125,
+          0.00015,
+          0.00018749999999999998,
+          0.000225,
+          0.0002625,
+          0.0003,
+          0.00033749999999999996,
+          0.00037499999999999995,
+          0.00041249999999999994,
+          0.00045,
+          0.0004875,
+          0.000525,
+          0.0005625,
+          0.0006,
+          0.0006374999999999999,
+          0.0006749999999999999,
+          0.0007124999999999999,
+          0.0007499999999999999
+        ],
+        "training_method": "real/imag columns of Dx Ux_center sqrt(sum Cm.H Cm), separate Uy/Ux"
+      },
+      "parent_rank": 512,
+      "training_y_shifts_m": [
+        -0.00015,
+        -7.5e-05,
+        0.0,
+        7.5e-05,
+        0.00015
+      ],
+      "method": "shift_aware_y_from_parent; fresh unwindowed J0 core projection",
+      "y_seed": 345
+    },
+    "path": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_multisheet_library_rank512_5b06a0bb66a32858.npz",
+    "one_time_packing_seconds": 0.044660199999952965,
+    "parent_dictionary": {
+      "status": "loaded",
+      "load_seconds": 0.9256702999999789,
+      "build_seconds": null,
+      "spec": {
+        "schema_version": 1,
+        "rank": 512,
+        "seed": 42,
+        "grid_size": 2048,
+        "pixel_pitch_m": 7e-06,
+        "wavelength_m": 5.32e-07,
+        "spot_radius_m": 3e-05,
+        "design_length_m": 0.5,
+        "coordinates": "(arange(N)-N//2)*pitch; ordinary unshifted fft2",
+        "dictionary_field": "unwindowed J0; aperture applied after thread summation",
+        "oversampling": 16,
+        "power_iterations": 2,
+        "basis_strategy": "shift_aware",
+        "training_x_shifts_m": [
+          -0.0007499999999999999,
+          -0.0007124999999999999,
+          -0.0006749999999999999,
+          -0.0006374999999999999,
+          -0.0006,
+          -0.0005625,
+          -0.000525,
+          -0.0004875,
+          -0.00045,
+          -0.00041249999999999994,
+          -0.00037499999999999995,
+          -0.00033749999999999996,
+          -0.0003,
+          -0.0002625,
+          -0.000225,
+          -0.00018749999999999998,
+          -0.00015,
+          -0.0001125,
+          -7.5e-05,
+          -3.75e-05,
+          0.0,
+          3.75e-05,
+          7.5e-05,
+          0.0001125,
+          0.00015,
+          0.00018749999999999998,
+          0.000225,
+          0.0002625,
+          0.0003,
+          0.00033749999999999996,
+          0.00037499999999999995,
+          0.00041249999999999994,
+          0.00045,
+          0.0004875,
+          0.000525,
+          0.0005625,
+          0.0006,
+          0.0006374999999999999,
+          0.0006749999999999999,
+          0.0007124999999999999,
+          0.0007499999999999999
+        ],
+        "training_method": "real/imag columns of Dx Ux_center sqrt(sum Cm.H Cm), separate Uy/Ux"
+      },
+      "x_basis_parity": {
+        "even_column_energy_fraction": 0.5022220257829771,
+        "odd_column_energy_fraction": 0.4977779742170228
+      }
+    },
+    "trained_at_used_y_positions": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "rank": 450,
+  "sheet_y_m": [
+    -0.00015,
+    -7.5e-05,
+    0.0,
+    7.5e-05,
+    0.00015
+  ],
+  "training_y_shifts_m": [
+    -0.00015,
+    -7.5e-05,
+    0.0,
+    7.5e-05,
+    0.00015
+  ],
+  "centre_span_um": 300.0,
+  "desired_slab_thickness_um": 374.99999999999994,
+  "nominal_beam_terms": 8815,
+  "nonzero_beam_terms": 8815,
+  "axial_sampling": {
+    "dz_m": 0.005,
+    "analytic_intensity_bandwidth_cycles_per_m": 83.9999999997147,
+    "nyquist_checked": true,
+    "note": "Necessary analytic-mode bandwidth check only; finite-aperture/axial convergence not established."
+  },
+  "normalization": {
+    "shared_scale": 4.702798858332857,
+    "source": "direct-field aperture maximum for comparison only",
+    "independent_brightness_or_phase_fit": false
+  },
+  "initial_field_metrics": {
+    "complex_relative_l2": 0.013552285415793206,
+    "complex_snr_db": 37.35974921051712,
+    "amplitude_relative_l2": 0.010939836654600747,
+    "amplitude_ssim": 0.9994870880712861,
+    "amplitude_psnr_db": 61.56058322673652,
+    "amplitude_snr_db": 39.219783250243985,
+    "intensity_relative_l2": 0.011906092582046316,
+    "intensity_ssim": 0.9999729803406001,
+    "intensity_psnr_db": 68.69838011284128,
+    "intensity_snr_db": 38.48461489374762,
+    "bright_phase_mae_rad": 0.018485792578360607,
+    "bright_phase_rmse_rad": 0.03367941544174624,
+    "intensity_weighted_phase_mae_rad": 0.0038513626841242864,
+    "phase_excluded_reference_energy_fraction": 3.9310282572754497e-05,
+    "phase_mask_pixel_fraction": 0.20049309730529785,
+    "bright_reference_dark_candidate_fraction": 0.01007338312746974
+  },
+  "initial_check_passed": false,
+  "timing": {
+    "direct_field": {
+      "samples": [
+        {
+          "field_generation_seconds": 1486.1132863000003
+        }
+      ],
+      "median_seconds": 1486.1132863000003,
+      "min_seconds": 1486.1132863000003,
+      "max_seconds": 1486.1132863000003,
+      "repeats": 1,
+      "warmups": 0
+    },
+    "proposed_field": {
+      "samples": [
+        {
+          "thread_core_weighting_seconds": 0.2095128999994813,
+          "x_shift_operator_seconds": 1.2139219999994566,
+          "x_shifted_core_sum_seconds": 0.22391540000035093,
+          "y_shift_operator_seconds": 0.14925129999983255,
+          "y_shifted_core_sum_seconds": 0.02998790000037843,
+          "spatial_factor_reconstruction_seconds": 0.07961960000011459,
+          "field_generation_seconds": 1.9083793999998306
+        }
+      ],
+      "median_seconds": 1.9083793999998306,
+      "min_seconds": 1.9083793999998306,
+      "max_seconds": 1.9083793999998306,
+      "repeats": 1,
+      "warmups": 0
+    },
+    "note": "Both regenerate fields with identical repeats/warmups. Excludes dictionary preparation/loading, coefficient design, aperture, normalization, CGH and propagation. Default single-run exploratory timing; not actual SLM display latency."
+  },
+  "scope": "Coherent sum of repeated identical sheets; one CGH; virtual 1:1 ideal 4f; physical SLM/1:4 mapping not applied. Known training coordinates are explicitly recorded; no unseen-shift guarantee.",
+  "study": "repeated_123_sheets_xy_projected_core",
+  "schema_version": 1,
+  "encoding": {
+    "direct": {
+      "definition": "Theta=f(a) sin(phi+carrier); J1(f)=0.58*a; 8-bit; ideal +1 order filter",
+      "amplitude_coupling": 0.58,
+      "sensor_intensity_gain_correction": 2.9726516052318672,
+      "first_order_power_fraction_of_incident": 0.00381060528099841,
+      "initial_plane_complex_relative_l2": 0.12750320906532087,
+      "filter_radius_rad_per_m": 135014.57692406618,
+      "amplitude_saturation_fraction": 0.0,
+      "physical_4f_magnification": "virtual_1_to_1; physical SLM mapping not calibrated"
+    },
+    "proposed": {
+      "definition": "Theta=f(a) sin(phi+carrier); J1(f)=0.58*a; 8-bit; ideal +1 order filter",
+      "amplitude_coupling": 0.58,
+      "sensor_intensity_gain_correction": 2.9726516052318672,
+      "first_order_power_fraction_of_incident": 0.0038085402039945097,
+      "initial_plane_complex_relative_l2": 0.1275971959501064,
+      "filter_radius_rad_per_m": 135014.57692406618,
+      "amplitude_saturation_fraction": 9.5367431640625e-07,
+      "physical_4f_magnification": "virtual_1_to_1; physical SLM mapping not calibrated"
+    }
+  },
+  "cgh_encoding_and_ideal4f_seconds": {
+    "direct": 1.4578460000002451,
+    "proposed": 1.4558311999999205
+  },
+  "propagation": {
+    "four_field_propagation_and_sensor_figures_seconds": 238.6238397000002,
+    "full_sensor_metrics": [
+      {
+        "z_m": 0.0,
+        "scope": "full original N x N sensor window",
+        "complex": {
+          "complex_relative_l2": 0.013552284799516201,
+          "complex_snr_db": 37.359749506968086,
+          "amplitude_relative_l2": 0.010940500535070896,
+          "amplitude_ssim": 0.999487088075168,
+          "amplitude_psnr_db": 61.56058351571029,
+          "amplitude_snr_db": 39.21978357378998,
+          "intensity_relative_l2": 0.011905931867659092,
+          "intensity_ssim": 0.9999729803443635,
+          "intensity_psnr_db": 68.69838104318676,
+          "intensity_snr_db": 38.48461594974656,
+          "bright_phase_mae_rad": 0.018485790118575096,
+          "bright_phase_rmse_rad": 0.03367941081523895,
+          "intensity_weighted_phase_mae_rad": 0.003851362969726324,
+          "phase_excluded_reference_energy_fraction": 3.931028550141491e-05,
+          "phase_mask_pixel_fraction": 0.20049309730529785,
+          "bright_reference_dark_candidate_fraction": 0.01007338312746974
+        },
+        "cgh": {
+          "complex_relative_l2": 0.0197228342294693,
+          "complex_snr_db": 34.100613704453984,
+          "amplitude_relative_l2": 0.01567094959318638,
+          "amplitude_ssim": 0.998798030142235,
+          "amplitude_psnr_db": 57.68425978108631,
+          "amplitude_snr_db": 36.09750746631895,
+          "intensity_relative_l2": 0.01587938703596592,
+          "intensity_ssim": 0.9999368381710783,
+          "intensity_psnr_db": 64.90965091958796,
+          "intensity_snr_db": 35.98331699226455,
+          "bright_phase_mae_rad": 0.024033322930336,
+          "bright_phase_rmse_rad": 0.051685530692338943,
+          "intensity_weighted_phase_mae_rad": 0.0062511153519153595,
+          "phase_excluded_reference_energy_fraction": 4.8520199925405905e-05,
+          "phase_mask_pixel_fraction": 0.22057676315307617,
+          "bright_reference_dark_candidate_fraction": 0.010518112425229634
+        }
+      },
+      {
+        "z_m": 0.1,
+        "scope": "full original N x N sensor window",
+        "complex": {
+          "complex_relative_l2": 0.013552026823163033,
+          "complex_snr_db": 37.359915150003715,
+          "amplitude_relative_l2": 0.009671023115515709,
+          "amplitude_ssim": 0.9994096635823109,
+          "amplitude_psnr_db": 61.189590760370656,
+          "amplitude_snr_db": 40.29093788468771,
+          "intensity_relative_l2": 0.01152584608644247,
+          "intensity_ssim": 0.9999606053683683,
+          "intensity_psnr_db": 68.07874384446055,
+          "intensity_snr_db": 38.76639180314799,
+          "bright_phase_mae_rad": 0.021124130114912987,
+          "bright_phase_rmse_rad": 0.03584859520196915,
+          "intensity_weighted_phase_mae_rad": 0.0056085484102368355,
+          "phase_excluded_reference_energy_fraction": 3.4971966670127586e-05,
+          "phase_mask_pixel_fraction": 0.27611351013183594,
+          "bright_reference_dark_candidate_fraction": 0.009254781953952322
+        },
+        "cgh": {
+          "complex_relative_l2": 0.019721299409866333,
+          "complex_snr_db": 34.10128909231152,
+          "amplitude_relative_l2": 0.013982051983475685,
+          "amplitude_ssim": 0.9989651557583694,
+          "amplitude_psnr_db": 57.871434833908665,
+          "amplitude_snr_db": 37.088281918505096,
+          "intensity_relative_l2": 0.015947071835398674,
+          "intensity_ssim": 0.9999085307195248,
+          "intensity_psnr_db": 65.16064672818362,
+          "intensity_snr_db": 35.94638033559487,
+          "bright_phase_mae_rad": 0.025505568832159042,
+          "bright_phase_rmse_rad": 0.0478782057762146,
+          "intensity_weighted_phase_mae_rad": 0.008312498219311237,
+          "phase_excluded_reference_energy_fraction": 5.50762633793056e-05,
+          "phase_mask_pixel_fraction": 0.3900790214538574,
+          "bright_reference_dark_candidate_fraction": 0.009825134006882178
+        }
+      },
+      {
+        "z_m": 0.25,
+        "scope": "full original N x N sensor window",
+        "complex": {
+          "complex_relative_l2": 0.013440852053463459,
+          "complex_snr_db": 37.43146423135777,
+          "amplitude_relative_l2": 0.010282623581588268,
+          "amplitude_ssim": 0.9995086443255986,
+          "amplitude_psnr_db": 62.6973151025032,
+          "amplitude_snr_db": 39.758464793570624,
+          "intensity_relative_l2": 0.010910416021943092,
+          "intensity_ssim": 0.9999791631676592,
+          "intensity_psnr_db": 70.11605013689885,
+          "intensity_snr_db": 39.243035740760995,
+          "bright_phase_mae_rad": 0.018718473613262177,
+          "bright_phase_rmse_rad": 0.031030362471938133,
+          "intensity_weighted_phase_mae_rad": 0.0042486912570893764,
+          "phase_excluded_reference_energy_fraction": 5.5199758207891136e-05,
+          "phase_mask_pixel_fraction": 0.2774088382720947,
+          "bright_reference_dark_candidate_fraction": 0.009042256498933855
+        },
+        "cgh": {
+          "complex_relative_l2": 0.019682878628373146,
+          "complex_snr_db": 34.118227740550154,
+          "amplitude_relative_l2": 0.014232859946787357,
+          "amplitude_ssim": 0.9990676826322147,
+          "amplitude_psnr_db": 59.77319988792766,
+          "amplitude_snr_db": 36.93426129280098,
+          "intensity_relative_l2": 0.013057740405201912,
+          "intensity_ssim": 0.9999619351978914,
+          "intensity_psnr_db": 68.53994999285395,
+          "intensity_snr_db": 37.68227378627808,
+          "bright_phase_mae_rad": 0.028365429490804672,
+          "bright_phase_rmse_rad": 0.04657306522130966,
+          "intensity_weighted_phase_mae_rad": 0.006531159393489361,
+          "phase_excluded_reference_energy_fraction": 0.00014143607404548675,
+          "phase_mask_pixel_fraction": 0.3999776840209961,
+          "bright_reference_dark_candidate_fraction": 0.0162348267911599
+        }
+      },
+      {
+        "z_m": 0.4,
+        "scope": "full original N x N sensor window",
+        "complex": {
+          "complex_relative_l2": 0.013912520371377468,
+          "complex_snr_db": 37.131883685463286,
+          "amplitude_relative_l2": 0.009842525236308575,
+          "amplitude_ssim": 0.9993723116619895,
+          "amplitude_psnr_db": 61.807159143256285,
+          "amplitude_snr_db": 40.13863848027958,
+          "intensity_relative_l2": 0.010779290460050106,
+          "intensity_ssim": 0.9999625739997787,
+          "intensity_psnr_db": 69.78519701129945,
+          "intensity_snr_db": 39.34796596412465,
+          "bright_phase_mae_rad": 0.020520474761724472,
+          "bright_phase_rmse_rad": 0.033556826412677765,
+          "intensity_weighted_phase_mae_rad": 0.005661395378410816,
+          "phase_excluded_reference_energy_fraction": 4.731078661279753e-05,
+          "phase_mask_pixel_fraction": 0.3097989559173584,
+          "bright_reference_dark_candidate_fraction": 0.009422106202059272
+        },
+        "cgh": {
+          "complex_relative_l2": 0.020468566566705704,
+          "complex_snr_db": 33.77825110200331,
+          "amplitude_relative_l2": 0.014425069093704224,
+          "amplitude_ssim": 0.9987170125109669,
+          "amplitude_psnr_db": 58.3214963957859,
+          "amplitude_snr_db": 36.818126304188745,
+          "intensity_relative_l2": 0.013216429390013218,
+          "intensity_ssim": 0.999932973314751,
+          "intensity_psnr_db": 67.78930982143024,
+          "intensity_snr_db": 37.57716579387003,
+          "bright_phase_mae_rad": 0.03603493422269821,
+          "bright_phase_rmse_rad": 0.05631330609321594,
+          "intensity_weighted_phase_mae_rad": 0.007660676259547472,
+          "phase_excluded_reference_energy_fraction": 0.00022362082381732762,
+          "phase_mask_pixel_fraction": 0.5271739959716797,
+          "bright_reference_dark_candidate_fraction": 0.026259899924382487
+        }
+      },
+      {
+        "z_m": 0.5,
+        "scope": "full original N x N sensor window",
+        "complex": {
+          "complex_relative_l2": 0.013682866469025612,
+          "complex_snr_db": 37.27645803340042,
+          "amplitude_relative_l2": 0.009821976535022259,
+          "amplitude_ssim": 0.9994472613107361,
+          "amplitude_psnr_db": 63.42008687735636,
+          "amplitude_snr_db": 40.156876881464754,
+          "intensity_relative_l2": 0.008364444598555565,
+          "intensity_ssim": 0.9999811808931034,
+          "intensity_psnr_db": 73.38923267675997,
+          "intensity_snr_db": 41.55110020766672,
+          "bright_phase_mae_rad": 0.020154714584350586,
+          "bright_phase_rmse_rad": 0.03174241632223129,
+          "intensity_weighted_phase_mae_rad": 0.004996040370315313,
+          "phase_excluded_reference_energy_fraction": 5.910336767556146e-05,
+          "phase_mask_pixel_fraction": 0.2718956470489502,
+          "bright_reference_dark_candidate_fraction": 0.009355382655231044
+        },
+        "cgh": {
+          "complex_relative_l2": 0.020428940653800964,
+          "complex_snr_db": 33.79508312299551,
+          "amplitude_relative_l2": 0.014409435912966728,
+          "amplitude_ssim": 0.9989257507834034,
+          "amplitude_psnr_db": 60.05931027657976,
+          "amplitude_snr_db": 36.82763529494518,
+          "intensity_relative_l2": 0.01019001193344593,
+          "intensity_ssim": 0.9999707157412908,
+          "intensity_psnr_db": 71.71598137623204,
+          "intensity_snr_db": 39.835801777869236,
+          "bright_phase_mae_rad": 0.03467457741498947,
+          "bright_phase_rmse_rad": 0.05269433930516243,
+          "intensity_weighted_phase_mae_rad": 0.0066022975370287895,
+          "phase_excluded_reference_energy_fraction": 0.00036625302163884044,
+          "phase_mask_pixel_fraction": 0.4373784065246582,
+          "bright_reference_dark_candidate_fraction": 0.035498539654990086
+        }
+      }
+    ],
+    "bandlimit": [
+      {
+        "z_m": 0.0,
+        "discarded_spectral_power_fraction": {
+          "direct_complex": 0.0,
+          "direct_cgh": 0.0,
+          "proposed_complex": 0.0,
+          "proposed_cgh": 0.0
+        }
+      },
+      {
+        "z_m": 0.1,
+        "discarded_spectral_power_fraction": {
+          "direct_complex": 0.0,
+          "direct_cgh": 0.0,
+          "proposed_complex": 0.0,
+          "proposed_cgh": 0.0
+        }
+      },
+      {
+        "z_m": 0.25,
+        "discarded_spectral_power_fraction": {
+          "direct_complex": 0.0,
+          "direct_cgh": 0.0,
+          "proposed_complex": 0.0,
+          "proposed_cgh": 0.0
+        }
+      },
+      {
+        "z_m": 0.4,
+        "discarded_spectral_power_fraction": {
+          "direct_complex": 2.176233905131375e-05,
+          "direct_cgh": 2.4665790368405607e-09,
+          "proposed_complex": 2.1668137770005016e-05,
+          "proposed_cgh": 2.4737061088312087e-09
+        }
+      },
+      {
+        "z_m": 0.5,
+        "discarded_spectral_power_fraction": {
+          "direct_complex": 9.800990697725728e-05,
+          "direct_cgh": 1.1328201446696874e-08,
+          "proposed_complex": 9.759030737973427e-05,
+          "proposed_cgh": 1.1361358902746268e-08
+        }
+      }
+    ],
+    "padding_convergence": "not checked; repeat with larger padding_factor",
+    "array_order": "[z,y,x]",
+    "saved_volume_scope": "explicit x/y ROI"
+  },
+  "volume_proposed_vs_direct": {
+    "complex": {
+      "complex_relative_l2": 0.011262243613600731,
+      "intensity_relative_l2": 0.010747911408543587,
+      "intensity_psnr_db": 59.5696846001126,
+      "intensity_sum_ratio": 0.9995469547318635,
+      "ssim_note": "SSIM is reported per 2D sheet/sensor plane; no flattened 3D SSIM."
+    },
+    "cgh": {
+      "complex_relative_l2": 0.014633412472903728,
+      "intensity_relative_l2": 0.012360106222331524,
+      "intensity_psnr_db": 58.23363292759217,
+      "intensity_sum_ratio": 0.9991041966855168,
+      "ssim_note": "SSIM is reported per 2D sheet/sensor plane; no flattened 3D SSIM."
+    }
+  },
+  "volume_vs_desired_slab": {
+    "direct": {
+      "intensity_relative_l2": 9.444976806640625
+    },
+    "proposed": {
+      "intensity_relative_l2": 9.437150001525879
+    }
+  },
+  "per_sheet_cgh": [
+    {
+      "requested_y_m": -0.00015,
+      "sampled_y_m": -0.000147,
+      "proposed_vs_direct": {
+        "complex_relative_l2": 0.015160520561039448,
+        "intensity_relative_l2": 0.01479518786072731,
+        "ssim": 0.9988821883021798,
+        "psnr_db": 48.652389845426626,
+        "snr_db": 36.59759055385214
+      },
+      "direct_vs_target": {
+        "intensity_relative_l2": 5.032042503356934,
+        "ssim": 0.2821970921683371,
+        "psnr_db": -6.644624804780641,
+        "snr_db": -14.034887239989375
+      },
+      "proposed_vs_target": {
+        "intensity_relative_l2": 5.030209064483643,
+        "ssim": 0.28102799224337494,
+        "psnr_db": -6.641459699147102,
+        "snr_db": -14.031722134355835
+      }
+    },
+    {
+      "requested_y_m": -7.5e-05,
+      "sampled_y_m": -7.7e-05,
+      "proposed_vs_direct": {
+        "complex_relative_l2": 0.010347832925617695,
+        "intensity_relative_l2": 0.008668532595038414,
+        "ssim": 0.9997355937767805,
+        "psnr_db": 54.11053674831193,
+        "snr_db": 41.24108865469198
+      },
+      "direct_vs_target": {
+        "intensity_relative_l2": 10.19836711883545,
+        "ssim": 0.30542651360413436,
+        "psnr_db": -12.78035153208322,
+        "snr_db": -20.170613967291953
+      },
+      "proposed_vs_target": {
+        "intensity_relative_l2": 10.190337181091309,
+        "ssim": 0.30404412768101025,
+        "psnr_db": -12.773509823017475,
+        "snr_db": -20.16377225822621
+      }
+    },
+    {
+      "requested_y_m": 0.0,
+      "sampled_y_m": 0.0,
+      "proposed_vs_direct": {
+        "complex_relative_l2": 0.014554055407643318,
+        "intensity_relative_l2": 0.013095629401504993,
+        "ssim": 0.9995108532883941,
+        "psnr_db": 51.00914170712506,
+        "snr_db": 37.657471885973685
+      },
+      "direct_vs_target": {
+        "intensity_relative_l2": 11.288093566894531,
+        "ssim": 0.29717195431250704,
+        "psnr_db": -13.662150916969992,
+        "snr_db": -21.052413352178725
+      },
+      "proposed_vs_target": {
+        "intensity_relative_l2": 11.280058860778809,
+        "ssim": 0.296033067942188,
+        "psnr_db": -13.655965933198397,
+        "snr_db": -21.046228368407128
+      }
+    },
+    {
+      "requested_y_m": 7.5e-05,
+      "sampled_y_m": 7.7e-05,
+      "proposed_vs_direct": {
+        "complex_relative_l2": 0.010376735590398312,
+        "intensity_relative_l2": 0.00872033555060625,
+        "ssim": 0.999731827256945,
+        "psnr_db": 54.07559688683329,
+        "snr_db": 41.189335250271085
+      },
+      "direct_vs_target": {
+        "intensity_relative_l2": 10.198728561401367,
+        "ssim": 0.30454008015851886,
+        "psnr_db": -12.780659696430504,
+        "snr_db": -20.170922131639237
+      },
+      "proposed_vs_target": {
+        "intensity_relative_l2": 10.190242767333984,
+        "ssim": 0.303327967588016,
+        "psnr_db": -12.773429266935398,
+        "snr_db": -20.163691702144135
+      }
+    },
+    {
+      "requested_y_m": 0.00015,
+      "sampled_y_m": 0.000147,
+      "proposed_vs_direct": {
+        "complex_relative_l2": 0.015144012868404388,
+        "intensity_relative_l2": 0.014794114045798779,
+        "ssim": 0.9988924549327665,
+        "psnr_db": 48.640233316748876,
+        "snr_db": 36.59822307489117
+      },
+      "direct_vs_target": {
+        "intensity_relative_l2": 5.032679557800293,
+        "ssim": 0.28099389787017626,
+        "psnr_db": -6.645725039884319,
+        "snr_db": -14.03598747509305
+      },
+      "proposed_vs_target": {
+        "intensity_relative_l2": 5.029773235321045,
+        "ssim": 0.27973947319065595,
+        "psnr_db": -6.640708004744039,
+        "snr_db": -14.030970439952773
+      }
+    }
+  ],
+  "thickness": {
+    "direct_cgh": {
+      "half_max_support_intervals_um": [
+        [
+          -475.99999999999994,
+          -462.0
+        ],
+        [
+          -441.0,
+          -426.99999999999994
+        ],
+        [
+          -399.0,
+          -385.0
+        ],
+        [
+          -364.0,
+          -350.0
+        ],
+        [
+          -322.0,
+          -308.0
+        ],
+        [
+          -280.0,
+          -266.0
+        ],
+        [
+          -245.0,
+          -231.0
+        ],
+        [
+          -203.0,
+          -189.0
+        ],
+        [
+          -161.0,
+          -147.0
+        ],
+        [
+          -126.0,
+          -112.0
+        ],
+        [
+          -84.0,
+          -70.0
+        ],
+        [
+          -42.0,
+          -35.0
+        ],
+        [
+          -7.0,
+          7.0
+        ],
+        [
+          35.0,
+          42.0
+        ],
+        [
+          70.0,
+          84.0
+        ],
+        [
+          112.0,
+          126.0
+        ],
+        [
+          147.0,
+          161.0
+        ],
+        [
+          189.0,
+          203.0
+        ],
+        [
+          231.0,
+          245.0
+        ],
+        [
+          266.0,
+          280.0
+        ],
+        [
+          308.0,
+          322.0
+        ],
+        [
+          350.0,
+          364.0
+        ],
+        [
+          385.0,
+          399.0
+        ],
+        [
+          426.99999999999994,
+          441.0
+        ],
+        [
+          462.0,
+          475.99999999999994
+        ]
+      ],
+      "half_max_support_span_um": 951.9999999999999,
+      "out_of_slab_power_fraction_in_saved_roi": 0.6332785424074051,
+      "integrated_y_profile_cv_inside_slab": 0.5626159056448817,
+      "note": "Integrated over saved x/z ROI. Multiple peaks are not a single FWHM."
+    },
+    "proposed_cgh": {
+      "half_max_support_intervals_um": [
+        [
+          -475.99999999999994,
+          -462.0
+        ],
+        [
+          -441.0,
+          -426.99999999999994
+        ],
+        [
+          -399.0,
+          -385.0
+        ],
+        [
+          -364.0,
+          -350.0
+        ],
+        [
+          -322.0,
+          -308.0
+        ],
+        [
+          -280.0,
+          -266.0
+        ],
+        [
+          -245.0,
+          -231.0
+        ],
+        [
+          -203.0,
+          -189.0
+        ],
+        [
+          -161.0,
+          -147.0
+        ],
+        [
+          -126.0,
+          -112.0
+        ],
+        [
+          -84.0,
+          -70.0
+        ],
+        [
+          -42.0,
+          -35.0
+        ],
+        [
+          -7.0,
+          7.0
+        ],
+        [
+          35.0,
+          42.0
+        ],
+        [
+          70.0,
+          84.0
+        ],
+        [
+          112.0,
+          126.0
+        ],
+        [
+          147.0,
+          161.0
+        ],
+        [
+          189.0,
+          203.0
+        ],
+        [
+          231.0,
+          245.0
+        ],
+        [
+          266.0,
+          280.0
+        ],
+        [
+          308.0,
+          322.0
+        ],
+        [
+          350.0,
+          364.0
+        ],
+        [
+          385.0,
+          399.0
+        ],
+        [
+          426.99999999999994,
+          441.0
+        ],
+        [
+          462.0,
+          475.99999999999994
+        ]
+      ],
+      "half_max_support_span_um": 951.9999999999999,
+      "out_of_slab_power_fraction_in_saved_roi": 0.6332795183624409,
+      "integrated_y_profile_cv_inside_slab": 0.5626672870018421,
+      "note": "Integrated over saved x/z ROI. Multiple peaks are not a single FWHM."
+    }
+  },
+  "volume_roi": {
+    "x_m": [
+      -0.000896,
+      0.000896
+    ],
+    "y_m": [
+      -0.000497,
+      0.000497
+    ],
+    "z_m": [
+      0.0,
+      0.5
+    ],
+    "shape_zyx": [
+      101,
+      143,
+      257
+    ]
+  },
+  "interpretation": "Initial acceptance does not ensure uniform thickness or target fidelity. Inspect direct-vs-target separately from proposed-vs-direct. Coherent interference between sheets is included; intensities are never added as if sheets were incoherent. MIP/scatter plots are only visualizations; voxel errors are unthresholded."
+}

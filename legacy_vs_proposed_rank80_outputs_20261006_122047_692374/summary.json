@@ -1,0 +1,91 @@
+{
+  "study": "legacy_coaxial_restore_spatial_shift_vs_projected_core_shift",
+  "rank": 80,
+  "grid_size": 2048,
+  "target_digits": "123",
+  "modes_per_thread": 43,
+  "thread_count": 41,
+  "active_thread_count": 41,
+  "nonzero_beam_terms": 1763,
+  "thread_spacing_m": 3.75e-05,
+  "spot_radius_m": 3e-05,
+  "repeats": 3,
+  "warmups": 0,
+  "reference_dir": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_digits123_rank_verified_outputs_rank512_parent512_v1",
+  "library_path": "C:\\Users\\kota-\\Github\\Project_new\\research\\lsh_digits123_design_library_rank512_51567adca08caaff.npz",
+  "shared_library_for_both_methods": true,
+  "dictionary_load_and_packing_seconds": 0.9305560999928275,
+  "statistics_seconds": {
+    "legacy": {
+      "core_weighting_seconds": 0.01452800007245969,
+      "reconstruction_seconds": 1.1226257999514928,
+      "shift_seconds": 13.175609800047823,
+      "summation_seconds": 0.33836799998243805,
+      "field_generation_seconds": 14.6518619999988
+    },
+    "proposed": {
+      "core_weighting_seconds": 0.010519099989323877,
+      "reconstruction_seconds": 0.024395699991146103,
+      "shift_seconds": 0.13215730000229087,
+      "summation_seconds": 0.01132910004525911,
+      "field_generation_seconds": 0.17890540001098998
+    }
+  },
+  "samples_seconds": {
+    "legacy": [
+      {
+        "core_weighting_seconds": 0.013682900011190213,
+        "reconstruction_seconds": 1.0581019000092056,
+        "shift_seconds": 12.341486199962674,
+        "summation_seconds": 0.3276927000115393,
+        "field_generation_seconds": 13.741767499988782
+      },
+      {
+        "core_weighting_seconds": 0.01452800007245969,
+        "reconstruction_seconds": 1.1226257999514928,
+        "shift_seconds": 13.175609800047823,
+        "summation_seconds": 0.33836799998243805,
+        "field_generation_seconds": 14.6518619999988
+      },
+      {
+        "core_weighting_seconds": 0.016907200042624027,
+        "reconstruction_seconds": 1.6475811000127578,
+        "shift_seconds": 16.260297200016794,
+        "summation_seconds": 0.38456639999640174,
+        "field_generation_seconds": 18.310212199998205
+      }
+    ],
+    "proposed": [
+      {
+        "core_weighting_seconds": 0.010519099989323877,
+        "reconstruction_seconds": 0.024395699991146103,
+        "shift_seconds": 0.13215730000229087,
+        "summation_seconds": 0.01132910004525911,
+        "field_generation_seconds": 0.17890540001098998
+      },
+      {
+        "core_weighting_seconds": 0.01000019999628421,
+        "reconstruction_seconds": 0.020244199986336753,
+        "shift_seconds": 0.1297737000277266,
+        "summation_seconds": 0.010553400032222271,
+        "field_generation_seconds": 0.17096849999506958
+      },
+      {
+        "core_weighting_seconds": 0.012577499961480498,
+        "reconstruction_seconds": 0.031901000009384006,
+        "shift_seconds": 0.1513307000277564,
+        "summation_seconds": 0.0128378999652341,
+        "field_generation_seconds": 0.2091552999918349
+      }
+    ]
+  },
+  "speedup_legacy_over_proposed": 81.89725966403894,
+  "complex_relative_l2_vs_saved_direct": {
+    "legacy": 0.9680812443541558,
+    "proposed": 0.9681454502380433
+  },
+  "complex_relative_l2_proposed_vs_legacy": 0.047681721211703706,
+  "dictionary_array_mib": 11.69921875,
+  "scope": "Field generation only. Common saved rank-r cores and precomputed spatial factors; not a reproduction of the original spatial Tucker offline fit. Legacy shifts fully restored fields using nonperiodic linear interpolation, proposed uses projected Fourier translation; operators differ, inspect errors. No CGH, propagation, saving or dictionary preparation in online timer.",
+  "quality_note": "Rank80 is a timing candidate, not a validated acceptable rank for this 123 input. Inspect reported field errors; speed alone does not establish reconstruction quality."
+}

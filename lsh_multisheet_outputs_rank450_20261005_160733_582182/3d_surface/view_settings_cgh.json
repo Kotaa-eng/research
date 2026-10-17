@@ -1,0 +1,53 @@
+{
+  "source_kind": "cgh",
+  "array_order": "[z,y,x]",
+  "representation": "outer voxel faces; no smoothing or modification of simulated fields",
+  "threshold_fraction_of_direct_peak": 0.2,
+  "direct_peak_intensity": 1.169711709022522,
+  "shared_replay_threshold": 0.2339423418045044,
+  "target_display": "target>0 geometry, separate from measured intensity threshold",
+  "native_shape_zyx": [
+    101,
+    143,
+    257
+  ],
+  "sampling_step_zyx": [
+    1,
+    2,
+    2
+  ],
+  "sampled_shape_zyx": [
+    101,
+    72,
+    129
+  ],
+  "display_axes": [
+    "z [mm]",
+    "x [mm]",
+    "y [um]"
+  ],
+  "box_aspect": [
+    1.5,
+    1.0,
+    0.9
+  ],
+  "elevation_deg": 25.0,
+  "azimuth_deg": -65.0,
+  "thresholded_voxel_counts": [
+    60424,
+    51315,
+    51195
+  ],
+  "surface_face_counts": [
+    23836,
+    91478,
+    91272
+  ],
+  "files": {
+    "comparison": "lsh_multisheet_outputs_rank450_20261005_160733_582182\\3d_surface\\volume_3d_surface_cgh.png",
+    "target": "lsh_multisheet_outputs_rank450_20261005_160733_582182\\3d_surface\\target_3d_surface_cgh.png",
+    "direct": "lsh_multisheet_outputs_rank450_20261005_160733_582182\\3d_surface\\direct_3d_surface_cgh.png",
+    "proposed": "lsh_multisheet_outputs_rank450_20261005_160733_582182\\3d_surface\\proposed_3d_surface_cgh.png"
+  },
+  "scope": "Visualization only; original phase masks, arrays, summary metrics and timings unchanged."
+}

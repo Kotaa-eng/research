@@ -1,0 +1,12 @@
+{
+  "files": [
+    "analytic_sheets.png",
+    "analytic_sheets_db.png",
+    "analytic_volume_data.npz",
+    "coefficient_design.npz",
+    "design_diagnostics.png",
+    "design_summary.json",
+    "iterations.csv",
+    "settings.json"
+  ]
+}

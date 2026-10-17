@@ -1,0 +1,29 @@
+{
+  "files": [
+    "cgh_mask_comparison.png",
+    "direct_cgh_8bit.png",
+    "factors\\core_magnitude_all_modes.png",
+    "factors\\factor_heatmaps.png",
+    "initial_field_comparison.png",
+    "initial_fields.npz",
+    "initial_summary.json",
+    "proposed_cgh_8bit.png",
+    "sensor_cgh_z0000.00mm.png",
+    "sensor_cgh_z0100.00mm.png",
+    "sensor_cgh_z0250.00mm.png",
+    "sensor_cgh_z0400.00mm.png",
+    "sensor_cgh_z0500.00mm.png",
+    "sensor_complex_z0000.00mm.png",
+    "sensor_complex_z0100.00mm.png",
+    "sensor_complex_z0250.00mm.png",
+    "sensor_complex_z0400.00mm.png",
+    "sensor_complex_z0500.00mm.png",
+    "settings.json",
+    "sheets_at_each_y.png",
+    "summary.json",
+    "thickness_profile.png",
+    "volume_3d.png",
+    "volume_data.npz",
+    "volume_projections.png"
+  ]
+}
